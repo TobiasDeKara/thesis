@@ -1,0 +1,13 @@
+import os
+import numpy as np
+import l0bnb
+
+
+x = np.load(os.path.join('synthetic_data', 'X_gen_syn_n3_p3_supp10_seed10002539.npy'))
+y = np.load(os.path.join('synthetic_data', 'y_gen_syn_n3_p3_supp10_seed10002539.npy'))
+
+p = x.shape[0]
+zlb = np.zeros(p)
+zup = np.ones(p)
+node_0 = Node(parent = None, zlb = zlb, zub = zub, x = x, y = y)
+
