@@ -17,14 +17,15 @@
 # --- Start of slurm commands -----------
 
 # Request an hour of runtime:
-#SBATCH --time=2:00:00
+#SBATCH --time=10:00
 
 # Default resources are 1 core with 2.8GB of memory.
-# Use more memory (4GB):
+# Use more memory:
+##SBATCH -n 8
 #SBATCH --mem=4G
 
 # Specify a job name:
-#SBATCH -J gen_syn_data
+#SBATCH -J p5_core1
 
 # Specify an output file
 # %j is a special variable that is replaced by the JobID when 

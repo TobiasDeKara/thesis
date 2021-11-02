@@ -1,6 +1,5 @@
 # Toby DeKara
 # Created: Oct 19, 2021
-# Last edited: Oct 26, 2021
 # A python script to generate synthetic data sets using the L0bnb function gen_synthetic
 
 # Citation: This work is based on the work described in 
@@ -19,11 +18,6 @@
 # Hazimeh et al.  use: 
 # supp_size = 10, rho = 0.1, n = 10^3, p = {10^3, 10^4, 10^5, 10^6}, snr = 5
 
-n = int(10**3) 
-p = int(10**4) 
-supp_size = 10 
-k = 1000 
-
 import numpy as np
 from l0bnb import gen_synthetic
 import os
@@ -31,7 +25,7 @@ import time
 
 path = 'synthetic_data' # this is a symbolic link to /users/tdekara/data/tdekara/synthetic_data
 
-for i in range(k): 
+def make_syn_data(n=10**3, p=10**5, supp_size=10, save_b = False):
 	seed = int(10**8 * np.random.random_sample())
 	X, y, b = gen_synthetic(n=n, p=p, supp_size=supp_size, rho = 0.1, snr = 5, seed=seed)
 	X_centered = X - np.mean(X, axis = 0)
@@ -43,14 +37,20 @@ for i in range(k):
 	# Note: For brevity, the n and p values recorded in the file names are the log base 10 of the actual values
 	filetag = f'_gen_syn_n{int(np.log10(n))}_p{int(np.log10(p))}_supp{supp_size}_seed{seed}'
 	np.save(os.path.join(path,'X' + filetag), X_normalized)
+	del X
 	np.save(os.path.join(path,'y' + filetag), y_normalized)
+	del y
 	filetag_b = f'_gen_syn_n{int(np.log10(n))}_p{int(np.log10(p))}_supp{supp_size}'
-	if i  == 0:
+	if save_b  == True:
 		np.save(os.path.join(path,'b' + filetag_b), b)
 
+for i in range(10):
+	make_syn_data()
+
+make_syn_data(save_b=True)
 
 # Measuring run time
 # n = 10^3, p = 5, k = 3, runtime = 10s, MAXRSS = 2.6 Mb
 # n = 10^3, p = 10^3, k = 3, runtime = 7s , MAXRSS = 2.6 Mb
 # n = 10^3, p = 10^3, k = 1000, runtime = 2 min, MAXRSS = .12 Gb
-# n = 10^3, p = 10^4, k = 1000, runtime = , MaxRSS = 
+# n = 10^3, p = 10^5, k = 50, runtime = 5 min , MaxRSS = 4.0 Gb
