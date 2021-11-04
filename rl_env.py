@@ -14,13 +14,16 @@ from l0bnb import BNBTree as tree
 # y_file_list = subprocess.run("cd synthetic_data; ls y* -1", capture_output=True, text=True, shell=True).stdout.splitlines()
 # b_file_list = subprocess.run("cd synthetic_data; ls b* -1", capture_output=True, text=True, shell=True).stdout.splitlines()
 
-# load synthetic data
+l0=1
+l2=1
+
+# class rl_env
+# self.reset(l0, l2)
+# load synthetic data, randomize this
 x = np.load(os.path.join('synthetic_data', 'X_gen_syn_n3_p3_supp10_seed10002539.npy'))
 y = np.load(os.path.join('synthetic_data', 'y_gen_syn_n3_p3_supp10_seed10002539.npy'))
 
 t = tree(x, y)
-l0=1
-l2=1
 m=5
 
 # TODO: look into the following (from 'tree.solve') ...
@@ -37,8 +40,20 @@ relax_sol = t.root.lower_solve(l0, l2, m, solver='l1cd', rel_tol=1e-4, mio_gap=0
 # print(f'relax_sol: {relax_sol}')
 
 # TODO: turn this into a state space
+cov = x.shape[0] * np.cov(x, rowvar=False, bias=True)
+# print(cov_mat[:5,:5])
+# indexing: x_i, node_j
+i = 2
+# TODO: change the max in the following line to the 2nd max, somehow
+x_cov_stats = [cov[i].min(), cov[i].max(), cov[i].mean()]
+print(x_cov_stats)
+# node_var_stats = [node_var_lb, node_var_up, node_var_beta]
 
 
+# observation = [l0, l2, x_cov_stats, cov_xy, node_stats, node_var_stats,]
+# return(observation)
 
+# self.step(action)
 
+# return(observation, reward, done, info)
 # TODO: handle branching
