@@ -25,7 +25,7 @@
 #SBATCH --mem=4G
 
 # Specify a job name:
-#SBATCH -J p5_core1
+#SBATCH -J p3_core1
 
 # Specify an output file
 # %j is a special variable that is replaced by the JobID when 
