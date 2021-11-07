@@ -2,4 +2,5 @@
 synthetic_data
 synthetic_data/
 *.out
+__pycache__
 l0bnb_package
