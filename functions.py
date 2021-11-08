@@ -46,7 +46,8 @@ def get_static_stats(cov, x, y, active_nodes, active_x_i, global_stats):
 def get_action_specific_stats(active_nodes, p, cov, x, y):
 	### Stats for node
 	all_action_specific_stats = []
-	for node in active_nodes:
+	for j in range(len(active_nodes)):
+		node = active_nodes[j]
 		len_support = len(node.support) if node.support else 0
 		node_stats = np.array([len(node.zub), len(node.zlb), node.primal_value, len_support])
 
@@ -68,7 +69,7 @@ def get_action_specific_stats(active_nodes, p, cov, x, y):
 				beta = node.primal_beta[node.support.index(i)]
 			else:
 				beta = 0
-			x_i_node_stats = np.array([lb, ub, beta])
+			x_i_node_stats = np.array([lb, ub, beta, i, j])
 
 			### Collect action-specific stats
 			action_specific_arrays = [node_stats, x_i_stats, x_i_node_stats]
