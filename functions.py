@@ -56,7 +56,7 @@ def get_action_specific_stats(active_nodes, p, cov, x, y):
 
 		### Stats for x_i
 		for i in node_active_x_i:
-			x_i_cov = np.partition(cov[i], -1)[:-1]
+			x_i_cov = np.partition(cov[i,:], -1)[:-1]
 			x_i_cov_percentiles = np.quantile(x_i_cov,[0,0.25,0.5,0.75,1])
 			x_dot_y = np.dot(x[:,i], y)
 			x_i_stats = np.append(x_i_cov_percentiles, x_dot_y)
@@ -64,7 +64,8 @@ def get_action_specific_stats(active_nodes, p, cov, x, y):
 			### Stats for x_i and node interaction
 			lb = 1 if i in node.zlb else 0
 			ub = 0 if i in node.zub else 1
-			# Note: len(node.primal_beta) == len(support)
+			# Note: len(node.primal_beta) == len(support) != p, so
+			# the beta values are indexed relative to len(support)
 			if node.support and i in node.support:
 				beta = node.primal_beta[node.support.index(i)]
 			else:
@@ -78,3 +79,25 @@ def get_action_specific_stats(active_nodes, p, cov, x, y):
 	
 	all_action_specific_stats = np.vstack(all_action_specific_stats)
 	return(all_action_specific_stats)
+
+def int_sol(node, int_tol=10**-4, m=5):
+	for i in node.support:
+		if i not in node.zlb and i not in node.zub:
+			# Note: the primal_beta values are indexed relative to len(support), 
+			# and the new variable 'beta_i' is indexed relative to  p
+			beta_i = node.primal_beta[node.support.index(i)]
+			z_i = np.absolute(beta_i) / m
+			residual = min(z_i, 1-z_i)
+			if residual > int_tol:
+				return(False)
+	return(True)
+
+
+
+
+
+
+
+
+
+			
