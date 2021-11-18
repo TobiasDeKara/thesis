@@ -63,13 +63,17 @@ def make_syn_data(n=10**3, p=10**3, supp_size=10, rho=0.1, snr=5):
     #     So this is all saved in 'data' not the home directory.
     # Note: For brevity, the n and p values recorded in the file names are 
     # the log base 10 of the actual values
-    filetag = f'_gen_syn_n{int(np.log10(n))}_p{int(np.log10(p))}_supp{supp_size}_seed{seed}'  
+
+    # Changed for mini data
+    filetag = f'_gen_syn_n{int(np.log10(n))}_pmini_supp{supp_size}_seed{seed}' 
+   
+    #filetag = f'_gen_syn_n{int(np.log10(n))}_p{int(np.log10(p))}_supp{supp_size}_seed{seed}'  
     np.save(os.path.join(path,'b' + filetag), b)
     np.save(os.path.join(path,'x' + filetag), x_normalized)
     np.save(os.path.join(path,'y' + filetag), y_normalized)
     del x, y, b
 
-for i in range(1000):
-    make_syn_data()
+for i in range(10):
+    make_syn_data(p=5)
 
 
