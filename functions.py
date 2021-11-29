@@ -1,92 +1,61 @@
 import numpy as np
+import os
+import subprocess
 
-def get_active_node_stats(active_nodes):
-	len_zubs, len_zlbs, primal_values, len_supports = ([],)*4
-	for key in active_nodes:
-		node = active_nodes[key]
-		len_zubs.append(len(node.zub))
-		len_zlbs.append(len(node.zlb))
-		primal_values.append(node.primal_value)
-		len_supports.append(len(node.support))
-	len_zubs_percentiles = np.quantile(len_zubs,[0,0.25,0.5,0.75,1])
-	len_zlbs_percentiles = np.quantile(len_zlbs,[0,0.25,0.5,0.75,1])
-	primal_values_percentiles = np.quantile(primal_values,[0,0.25,0.5,0.75,1])
-	len_supports_percentiles = np.quantile(len_supports,[0,0.25,0.5,0.75,1])
-	stats = (len_zubs_percentiles, len_zlbs_percentiles,\
-		primal_values_percentiles, len_supports_percentiles)
-	active_node_stats = np.concatenate(stats)
-	active_node_sats = np.append(active_node_stats, len(active_nodes))
-	return(active_node_stats)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+# 0 = all messages are logged (default behavior)
+# 1 = INFO messages are not printed
+# 2 = INFO and WARNING messages are not printed
+# 3 = INFO, WARNING, and ERROR messages are not printed 
 
-def get_static_stats(cov, x, y, active_nodes, active_x_i, global_stats):
-	all_x_dot_y = np.matmul(x.T, y)
+import tensorflow as tf
 
-	### Stats for all x
-	# Note: the cov_percentiles exclude the 1's from the diagonal
-	q = cov.shape[0]
-	# flatten and remove the 1's from the diagonal
-	cov_flat = np.partition(cov.flatten(), kth=-q)[:-q]
-	all_x_stats = np.append(np.quantile(cov_flat, [0, 0.25, 0.5, 0.75, 1]), \
-		np.quantile(all_x_dot_y,[0,0.25,0.5,0.75,1]))
+def get_q_hats(model_name, stats, n_stats, static_stats): 
+	model = tf.keras.models.load_model(os.path.join('./models/', model_name))
+	q_hats = np.zeros(n_stats)
+	for i in range(n_stats):
+		stat_input = stats[i,:]
+		model_input_i = np.concatenate((static_stats, stat_input))
+		model_input_i.shape = (1, model_input_i.shape[0])
+		model_input_i = tf.constant(model_input_i)
+		q_hats[i] = model.predict(model_input_i)
 
-	### Stats for all ACTIVE x
-	active_x_dot_y = all_x_dot_y[active_x_i]
-	if len(active_x_i) > 1:
-		cov_active = cov[active_x_i,:][:,active_x_i]
-		q = cov_active.shape[0]
-		cov_active_flat = np.partition(cov_active.flatten(), -q)[:-q]
-		active_x_stats = np.append(np.quantile(cov_active_flat,[0,0.25,0.5,0.75,1]), \
-			np.quantile(active_x_dot_y,[0,0.25,0.5,0.75,1]))
-	else:
-		active_x_stats = np.append(np.zeros(5), \
-			np.quantile(active_x_dot_y,[0,0.25,0.5,0.75,1]))
-	
-	active_x_stats = np.append(active_x_stats, len(active_x_i))
 
-	### Stats for all ACTIVE nodes
-	active_node_stats = get_active_node_stats(active_nodes)
+	# TODO: dueling architecture
+	return(q_hats)
 
-	### Gather static stats
-	static_stat_arrays = [global_stats, all_x_stats, active_x_stats, active_node_stats]
-	static_stats = np.concatenate(static_stat_arrays)
-	return(static_stats)
 
-def get_action_specific_stats(active_nodes, p, cov, x, y):
-	### Stats for node
-	all_action_specific_stats = []
-	for key in active_nodes:
-		node = active_nodes[key]
-		len_support = len(node.support) if node.support else 0
-		node_stats = np.array([len(node.zub), len(node.zlb), node.primal_value, len_support])
+def get_search_solution(node, p, l0, l2, y):
+	# node.x_sub_mat will be the submatrix of the original matrix x, that excludes
+	# the variables that have been branched down in the given node.  
+	# node.x_sub_mat will also be rearranged so that the variables that have been 
+	# branched up appear in the left-most columns.      
+	node_active_x_i = []
+	for k in range(p):
+		if k not in node.zlb and k not in node.zub:
+			 node_active_x_i.append(k)
+		 
+	# The first row of x_sub_mat has the indexes of the variables.
+	x_sub_mat = np.hstack((node.x[:, node.zlb], node.x[:, node_active_x_i]))
+	x_indexes = np.array((node.zlb + node_active_x_i), ndmin=2)
+	x_sub_mat_indexed = np.vstack((x_indexes, x_sub_mat))
 
-		# Find the x_i active in this specific node     
-		node_active_x_i = [i for i in range(p) if i not in node.zlb and i not in node.zub]
+	np.savetxt(fname=os.path.join('./param_for_search', 'x_sub_mat.csv'), \
+		X=x_sub_mat_indexed, fmt='%.18f', delimiter=',') 
+	np.savetxt(fname=os.path.join('./param_for_search', 'lambdas.csv'), \
+		X=np.array([l0, l2]), fmt='%.18f', delimiter=',') 
+	np.savetxt(fname=os.path.join('./param_for_search', 'len_zub.csv'), \
+		X=np.array([len(node.zub)]), fmt='%i', delimiter=',') 
+	np.savetxt(fname=os.path.join('./param_for_search', 'y.csv'), \
+		X=y, fmt='%.18f', delimiter=',')
+ 
+	subprocess.run('Rscript search_script.R', shell=True)
 
-		### Stats for x_i
-		for i in node_active_x_i:
-			x_i_cov = np.partition(cov[i,:], -1)[:-1]
-			x_i_cov_percentiles = np.quantile(x_i_cov,[0,0.25,0.5,0.75,1])
-			x_dot_y = np.dot(x[:,i], y)
-			x_i_stats = np.append(x_i_cov_percentiles, x_dot_y)
+	search_support = np.genfromtxt(os.path.join('./results_of_search', 'support.csv'), \
+		delimiter=',', dtype='int')
+	search_betas = np.genfromtxt(os.path.join('./results_of_search', 'betas.csv'), delimiter=',')
 
-			### Stats for x_i and node interaction
-			lb = 1 if i in node.zlb else 0
-			ub = 0 if i in node.zub else 1
-			# Note: len(node.primal_beta) == len(support) != p, so
-			# the beta values are indexed relative to len(support)
-			if node.support and i in node.support:
-				beta = node.primal_beta[node.support.index(i)]
-			else:
-				beta = 0
-			x_i_node_stats = np.array([lb, ub, beta, i, key])
-
-			### Collect action-specific stats
-			action_specific_arrays = [node_stats, x_i_stats, x_i_node_stats]
-			action_specific_stats = np.concatenate(action_specific_arrays)
-			all_action_specific_stats.append(action_specific_stats)
-	
-	all_action_specific_stats = np.vstack(all_action_specific_stats)
-	return(all_action_specific_stats)
+	return(search_support, search_betas)
 
 def int_sol(node, p, int_tol=10**-4, m=5):
 	# Simple verion used for testing
@@ -118,16 +87,3 @@ def prin(**kwargs):
 
 
 		
-
-
-
-
-
-
-
-
-
-
-
-
-	
