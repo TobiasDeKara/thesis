@@ -4,7 +4,6 @@
 # Much of the code below is taken directly from 'l0bnb', 
 # Copyright (c) 2020 [Hussein Hazimeh, and Rahul Mazumder, Ali Saab]
 
-
 import os
 import subprocess
 import numpy as np
@@ -17,7 +16,8 @@ from stat_functions import *
 import math
 
 class rl_env:
-	def __init__(self, l0=10**-5, l2=1, p=10**3, m=5, alpha=1, branch_model_name='branch_model_in58_lay2_0', \
+	def __init__(self, l0=10**-5, l2=1, p=10**3, m=5, alpha=1, \
+			branch_model_name='branch_model_in58_lay2_0', \
 			search_model_name='search_model_in49_lay2_0'):
 		self.l0 = l0
 		self.l2 = l2
@@ -25,14 +25,17 @@ class rl_env:
 		self.branch_model_name = branch_model_name
 		self.search_model_name = search_model_name
 
-		# Changed for mini data (p=5)
-		self.x_file_list = subprocess.run( \
-			f"cd synthetic_data; ls x*_pmini_* -1U", \
-			capture_output=True, text=True, shell=True).stdout.splitlines()
-		
-		#self.x_file_list = subprocess.run( \
-		#	f"cd synthetic_data; ls x*_p{int(np.log10(self.p))}_* -1U", \
-		#	capture_output=True, text=True, shell=True).stdout.splitlines()
+		# For mini data (p=5)
+		if p==5:
+			self.x_file_list = subprocess.run( \
+				f"cd synthetic_data; ls x*_pmini_* -1U", \
+				capture_output=True, text=True, shell=True).stdout.splitlines()
+		# For all other data (p in {10**3, 10**4, 10**5, 10**6})
+		else:
+			self.x_file_list = subprocess.run( \
+				f"cd synthetic_data; ls x*_p{int(np.log10(self.p))}_* -1U", \
+				capture_output=True, text=True, shell=True).stdout.splitlines()
+
 		self.int_tol = 10**-4
 		# m=5 works well for our synthetic data, but will need to adjusted for other data sets.
 		self.m = m	
@@ -40,9 +43,11 @@ class rl_env:
 
 		# All of the following attributes are reset by 'reset_rl_evn_vars()' which
 		# is called in 'reset(self)' below.
+		self.x_file_name = None
 		self.active_nodes = None
 		self.node_counter = 0
 		self.search_counter = 0
+		self.step_counter = 0
 		self.x = None
 		self.y = None
 		self.b = None
@@ -50,32 +55,39 @@ class rl_env:
 		self.curr_best_int_primal = math.inf
 		self.curr_best_int_beta = None
 		self.curr_best_int_support = None
+		self.state = None
+		self.branch_records = None
+		self.search_records = None
 
-	def reset_rl_env_vars(self):
-		self.active_nodes = dict()
-		self.node_counter = 0
-		self.search_counter = 0
-		self.x = None
-		self.y = None
-		self.b = None
-		self.cov = None
-		self.curr_best_int_primal = math.inf
-		self.curr_best_int_beta = None
-		self.curr_best_int_support = None
 
 		# TODO: we don't need to calulate the cov_stats at every step, so let's attach them to the rl_env
 		# self.cov_stats = None
 
-	def reset(self):
+	def reset(self, x_file_name=None):
 		"""
 		Creates the initial observation with a new x and y.
-		Returns a list of two numpy arrays: 'static_stats' (44 by 1) and 'action_specific_stats' (p by 15)
 		""" 
-		self.reset_rl_env_vars()
+		self.active_nodes = dict()
+		self.node_counter = 0
+		self.search_counter = 0
+		self.step_counter = 0
+		self.x = None
+		self.y = None
+		self.b = None
+		self.cov = None
+		self.curr_best_int_primal = math.inf
+		self.curr_best_int_beta = None
+		self.curr_best_int_support = None
+		self.state = dict()
+		self.branch_records = []
+		self.search_records = []
 
-		### Randomly select data from the test bed, with the given number of variables, 'self.p'
-		# TODO: allow requests for particular data by seed value
-		x_file_name = np.random.choice(self.x_file_list)
+		if x_file_name is None:
+			# Randomly select data from the test bed, with the given number of variables, 'self.p'
+			x_file_name = np.random.choice(self.x_file_list)
+
+		self.x_file_name = x_file_name
+	
 		y_file_name = x_file_name.replace('x', 'y')
 		b_file_name = x_file_name.replace('x', 'b')
 		self.x = np.load(os.path.join('synthetic_data', x_file_name))
@@ -104,11 +116,15 @@ class rl_env:
 		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, branch_stats.shape[0], static_stats)
 		search_q_hats = get_q_hats(self.search_model_name, search_stats, search_stats.shape[0], static_stats)
 
-		### Gather return values
+		### Gather state and return values
 		action_q_hats = np.concatenate((branch_q_hats, search_q_hats))
 		action_keys  =  np.concatenate((branch_keys, search_keys))
+		self.state = [static_stats, branch_keys, branch_stats, branch_q_hats, search_keys, search_stats, search_q_hats]
 
 		return([action_q_hats, action_keys])
+
+	def get_info(self):
+		return(f'node count: {self.node_counter} \nsearch count: {self.search_counter} \nstep count: {self.step_counter} \nx_file_name: {self.x_file_name}')
 
 	def eliminate_nodes(self, node_key):
 		node = self.active_nodes[node_key]
@@ -121,12 +137,8 @@ class rl_env:
 		# If so, then it is the new best integer solution, because otherwise it would have been
 		# eliminated in the step above. 
 		elif int_sol(node, p=self.p, int_tol=self.int_tol, m=self.m):
-			# prin(int_sol_node_primal=node.primal_value)
-			# prin(curr_best_before=self.curr_best_int_primal)
-
 			# TODO: no 'copy()' after 'node.primal_value' in next line?
 			self.curr_best_int_primal = node.primal_value
-			# prin(curr_best_after=self.curr_best_int_primal)
 			self.curr_best_int_beta = node.primal_beta.copy()
 			self.curr_best_int_support = node.support.copy()
 			del self.active_nodes[node_key]
@@ -167,10 +179,16 @@ class rl_env:
 			The integer solution search subroutine is indicated by the x_i index == -1.
 		"""
 # TODO: do we need to change the seed if we are searching twice in the same node?
-	
+		self.step_counter += 1
+
 		if int(action[0]) < 0:
 			### Search
-			self.search_counter += 1 
+			self.search_counter += 1
+
+			# self.search_records[static    self.state(static_stats), ##### in progress
+ # TODO:   Leaving off here.  Ask Alice how to store the records.
+
+ 
 			node = self.active_nodes[action[1]]
 			search_support, search_betas = \
 				get_search_solution(node=node, p=self.p, l0=self.l0, l2=self.l2, y=self.y)
@@ -213,11 +231,9 @@ class rl_env:
 		if len(self.active_nodes) == 0:
 			# Gather return values
 			done = True
-			newline = '\n'
-			observation = f'primal value: {self.curr_best_int_primal}{newline} \
-					beta: {self.curr_best_int_beta}{newline}support: {self.curr_best_int_support}'
+			observation = f'primal value: {self.curr_best_int_primal} \nbeta: {self.curr_best_int_beta} \nsupport: {self.curr_best_int_support}'
 			reward = -self.node_counter - self.alpha * self.search_counter
-			info = f'node count: {self.node_counter}{newline} search count: {self.search_counter}'
+			info = self.get_info()
 			return(observation, reward, done, info)
 
 		### Stats
@@ -259,9 +275,7 @@ class rl_env:
 		done = False
 		observation = [action_q_hats, action_keys] 
 		reward = 0
-		# TODO: formating with newline is not working
-		newline = '\n'
-		info = f'node count: {self.node_counter}{newline} search count: {self.search_counter}'
+		info = self.get_info()
 		return(observation, reward, done, info)
 
 
