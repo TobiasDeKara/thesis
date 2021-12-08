@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import subprocess
+import tensorflow as tf
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # 0 = all messages are logged (default behavior)
@@ -8,20 +9,14 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # 2 = INFO and WARNING messages are not printed
 # 3 = INFO, WARNING, and ERROR messages are not printed 
 
-import tensorflow as tf
 
-def get_q_hats(model_name, stats, n_stats, static_stats): 
+def get_q_hats(model_name, stats,  static_stats): 
 	model = tf.keras.models.load_model(os.path.join('./models/', model_name))
-	q_hats = np.zeros(n_stats)
-	for i in range(n_stats):
-		stat_input = stats[i,:]
-		model_input_i = np.concatenate((static_stats, stat_input))
-		model_input_i.shape = (1, model_input_i.shape[0])
-		model_input_i = tf.constant(model_input_i)
-		q_hats[i] = model.predict(model_input_i)
-
-
-	# TODO: dueling architecture
+	n_stats = stats.shape[0]
+	model_input = np.hstack((np.tile(static_stats, (n_stats,1)), stats))
+	model_input = tf.constant(model_input)
+	q_hats = model.predict(model_input)
+	
 	return(q_hats)
 
 
@@ -51,9 +46,10 @@ def get_search_solution(node, p, l0, l2, y):
  
 	subprocess.run('Rscript search_script.R', shell=True)
 
-	search_support = np.genfromtxt(os.path.join('./results_of_search', 'support.csv'), \
-		delimiter=',', dtype='int')
-	search_betas = np.genfromtxt(os.path.join('./results_of_search', 'betas.csv'), delimiter=',')
+	search_support = np.loadtxt(os.path.join('./results_of_search', 'support.csv'), \
+		delimiter=',', dtype='int', ndmin=1)
+	search_betas = np.loadtxt(os.path.join('./results_of_search', 'betas.csv'), delimiter=',', \
+		ndmin=1)
 
 	return(search_support, search_betas)
 
