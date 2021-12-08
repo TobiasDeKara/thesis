@@ -74,6 +74,6 @@ def make_syn_data(n=10**3, p=10**3, supp_size=10, rho=0.1, snr=5):
     del x, y, b
 
 for i in range(10):
-    make_syn_data(p=5)
+    make_syn_data(p=5, supp_size=1)
 
 
