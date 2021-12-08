@@ -23,11 +23,10 @@ gamma <- lambdas[[2,1]]
 len_zub <- read_csv('./param_for_search/len_zub.csv', col_names=FALSE, col_types='i')
 len_zub <- len_zub[[1,1]]
 
-fit <- L0Learn.fit(x_sub, y, algorithm="CDPSI", penalty='L0L2', 
+fit <- L0Learn.fit(x_sub, y, algorithm="CDPSI", penalty='L0L2', intercept=FALSE,
 	nGamma=1, gammaMin=gamma, gammaMax=gamma, lambdaGrid=list(lambda), excludeFirstK=len_zub)
-coefs_with_intercept <- coef(fit, lambda, gamma)
-betas_unsorted <- coefs_with_intercept[-1,]
-index_of_support_in_x_sub <- coefs_with_intercept@i[-1]
+betas_unsorted <- coef(fit, lambda, gamma)
+index_of_support_in_x_sub <- betas_unsorted@i
 index_of_support_in_p_unsorted <- col_names[index_of_support_in_x_sub]
 
 betas <- unname(betas_unsorted[order(index_of_support_in_p_unsorted)])
