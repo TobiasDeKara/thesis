@@ -23,21 +23,22 @@ from operator import attrgetter
 # The upper bound is defined as the minimum objective value of all known
 # integer solutions, and below we use the variable 'curr_best_int_primal'.
 # For each new node that is created by branching we use 'lower_solve' to find the 
-# primal solution to the relaxation.  	We then use 'upper_solve' which calculates
+# primal solution to the relaxation.  We then use 'upper_solve' which calculates
 # an integer solution by taking the support of the relaxation solution and setting
-# all z_i to 1.  	Thus, we have one known integer solution per node in addition 
-# to any integer solutions discovered using the search sub-routine.  	The minimum
-# of these is the upper bound.  	When brahching, the integer solution returned 
+# all z_i to 1.  Thus, we have one known integer solution per node in addition 
+# to any integer solutions discovered using the search sub-routine.  The minimum
+# of these is the upper bound.  When branching, the integer solution returned 
 # by 'upper_solve' for each daughter node can be greater than, equal to, or less
-# than the integer solution for the parent node.  	So after every branch and every
-# search we have to check for changes to the upper bound (again, refered to as
-# 'curr_best_int_primal').  	
+# than the integer solution for the parent node.  So after every branch and every
+# search we have to check for changes to the upper bound (again, referred to as
+# 'curr_best_int_primal').  
 # The lower bound is defined as the minimum primal objective value of relaxations
-# over all active nodes.  	Searching does not affect the primal values.  	When
-# branching, the primal values of the daughter nodes are always greater than
-# or equal to the primal value of the parent node.  	Therefore, if we branch 
+# over all active nodes.  Searching does not affect the primal values(and elimination 
+# after searching cannot remove the node that has the minimal relaxation primal value).  
+# When branching, the primal values of the daughter nodes are always greater than
+# or equal to the primal value of the parent node.  Therefore, if we branch 
 # on a node that does not have the current minimum primal, then the lower
-# bound will not change.  	We only have to check for changes to the lower bound
+# bound will not change.  We only have to check for changes to the lower bound
 # when we branch the node that does have the current minimum primal.
 
 
@@ -97,13 +98,13 @@ class rl_env(gym.Env):
 		self.curr_best_int_beta = None
 		self.curr_best_int_support = None
 		self.current_action = None
-		self.state = None  	# This is the representation of the state passed to agent (see comment below).
-		self.lower_bound = None  	# The minimum primal value over all active nodes.  	This is the best
+		self.state = None  # This is the representation of the state passed to agent (see comment below).
+		self.lower_bound = None  # The minimum primal value over all active nodes.  This is the best
 		# case scenario, i.e. how good any integer solution yet to be found could be.
 		self.lower_bound_node_key = None # The key of the node with the lowest primal value
 
 		# Note: If the lower_bound_node is selected for branching then the new lower_bound is found
-		# as the min of primal values over all active nodes.  	If any other node is selected for branching,
+		# as the min of primal values over all active nodes.  If any other node is selected for branching,
 		# then the lower_bound is unchanged. This is because branching removes space from the feasible region and 
 		# therefore can only increase or not change the primal value of the branched node, so if a node
 		# was already not node with minimal primal value, neither daughter node can be either.
@@ -249,7 +250,7 @@ class rl_env(gym.Env):
 
 			# Find primal value of search solution	
 			if search_support.shape[0] == 1:
-				residuals = self.y - np.dot(self.x[:,search_support],  	search_betas)
+				residuals = self.y - np.dot(self.x[:,search_support],  search_betas)
 			else:
 				residuals = self.y - np.matmul(self.x[:,search_support], search_betas)
 			rss = np.dot(residuals, residuals)
@@ -304,7 +305,7 @@ class rl_env(gym.Env):
 					self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'primal')
 					upper_bound_updated = True
 				del self.active_nodes[node_name_1]
-			else:  	# If not int., find node 1 upper bound, and check if best so far
+			else:  # If not int., find node 1 upper bound, and check if best so far
 				n_1_ub = self.active_nodes[node_name_1].upper_solve(self.l0, self.l2, m=5)
 				if n_1_ub < self.curr_best_int_primal:
 					self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'upper')
@@ -383,7 +384,7 @@ class rl_env(gym.Env):
 	
 			return(observation, reward, done, info)
 		### End of "If we're done" #########
-		  	
+		  
 		### If we're NOT done . . . 
 		### Stats
 		global_stats = np.array([self.l0, self.l2, self.p])		
@@ -435,7 +436,7 @@ class rl_env(gym.Env):
 		done = False
 		reward = change_in_opt_gap
 		# prin(reward=reward, prev_opt_gap = prev_opt_gap, og = self.optimality_gap, \
-		#  	ub = self.curr_best_int_primal, lb=self.lower_bound)
+		#  ub = self.curr_best_int_primal, lb=self.lower_bound)
 		info = self.get_info()
 		return(observation, reward, done, info)
 
