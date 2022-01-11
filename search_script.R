@@ -10,7 +10,7 @@
 library(L0Learn)
 library(readr)
 
-x_sub <- read_csv('./param_for_search/x_sub.csv', col_names=TRUE, col_types='d')
+x_sub <- read_csv('./param_for_search/x_sub_mat.csv', col_names=TRUE, col_types='d')
 col_names <- as.integer(names(x_sub)) # these are the indexes of the variables relative to p
 # Note that later 'coefs(fit, lambda, gamma)' will give us indexes of the support relative to x_sub
 
