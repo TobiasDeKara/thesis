@@ -11,3 +11,5 @@ obs = env.reset()
 done = False
 while(done==False):
 	obs, reward, done, info = env.step(np.random.choice(2))
+	
+print(obs, '\n', f'reward: {reward}', '\n', f'Done: {done}', '\n', info)
