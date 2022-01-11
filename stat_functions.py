@@ -3,22 +3,32 @@ from functions import prin
 import random
 
 def get_active_node_stats(active_nodes):
-	len_zubs, len_zlbs, primal_values, len_supports = [], [], [], []
+	# Summary statisitics that describe the set of all active nodes
+	# (The function that gets summary stats for each node is 'get_node_stats'
+	len_zubs, len_zlbs, primal_values, len_supports, searched = [], [], [], [], []
 	for key in active_nodes:
 		node = active_nodes[key]
 		len_zubs.append(len(node.zub))
 		len_zlbs.append(len(node.zlb))
 		primal_values.append(node.primal_value)
 		len_supports.append(len(node.support))
+		searched.append(node.searched)
 	len_zubs_percentiles = np.quantile(len_zubs,[0,0.25,0.5,0.75,1])
 	len_zlbs_percentiles = np.quantile(len_zlbs,[0,0.25,0.5,0.75,1])
 	primal_values_percentiles = np.quantile(primal_values,[0,0.25,0.5,0.75,1])
 	len_supports_percentiles = np.quantile(len_supports,[0,0.25,0.5,0.75,1])
+	mean_searched = np.mean(searched, keepdims=True)
 	stats = (len_zubs_percentiles, len_zlbs_percentiles,\
-		primal_values_percentiles, len_supports_percentiles)
+		primal_values_percentiles, len_supports_percentiles, mean_searched)
 	active_node_stats = np.concatenate(stats)
 	active_node_stats = np.append(active_node_stats, len(active_nodes))
 	return(active_node_stats)
+
+def get_node_stats(node):
+	# Returns 5 summary stats for a given node
+	len_support = len(node.support) if node.support else 0
+	node_stats = np.array([len(node.zub), len(node.zlb), node.primal_value, len_support, node.searched], dtype=float, ndmin=1)
+	return(node_stats)
 
 def get_static_stats(cov, x, y, active_nodes, active_x_i, global_stats):
 	all_x_dot_y = np.matmul(x.T, y)
@@ -68,9 +78,7 @@ def get_all_action_stats(active_nodes, p, cov, x, y):
 	for key in active_nodes:
 		### Stats for node
 		node = active_nodes[key]
-		len_support = len(node.support) if node.support else 0
-		# TODO: add node.n_searches
-		node_stats = np.array([len(node.zub), len(node.zlb), node.primal_value, len_support], dtype=float)
+		node_stats = get_node_stats(node)
 		all_searching_stats.append(node_stats)
 		all_searching_keys.append(key)
 
@@ -122,14 +130,11 @@ def get_random_action_stats(active_nodes, p, cov, x, y):
 	### Search
 	search_key, search_node = random.choice(list(active_nodes.items()))
 	search_key = np.array(search_key, dtype=str, ndmin=1)
-	len_support = len(search_node.support) if search_node.support else 0
-	# TODO: add node.n_searches
-	search_stats = np.array([len(search_node.zub), len(search_node.zlb), search_node.primal_value, len_support], dtype=float, ndmin=2)
+	search_stats = get_node_stats(search_node)
 	
 	### Branch
 	branch_node_key, branch_node = random.choice(list(active_nodes.items()))
-	len_support = len(branch_node.support) if branch_node.support else 0
-	branch_node_stats = np.array([len(branch_node.zub), len(branch_node.zlb), branch_node.primal_value, len_support], dtype=float)
+	branch_node_stats = get_node_stats(branch_node)
 
 	# Randomly choose an x_i that is active in this specific node     
 	node_active_x_i = [i for i in range(p) if i not in branch_node.zlb and i not in branch_node.zub]

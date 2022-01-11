@@ -4,6 +4,7 @@
 # Much of the code below is taken directly from 'l0bnb', 
 # Copyright (c) 2020 [Hussein Hazimeh, and Rahul Mazumder, Ali Saab]
 
+import gym
 import os
 import subprocess
 import numpy as np
@@ -14,33 +15,45 @@ from random import choice
 from functions import *
 from stat_functions import *
 import math
+from action_taken import action_taken
 
-# TODO: change q_array in get record to total_cost - self.cost_so_far
-class action_taken:
-	def __init__(self, alpha, prev_action,  branch_or_search, static_stats, specific_stats, q_hat, step_number):
-		self.alpha = alpha
-		self.prev_action = prev_action
-		self.branch_or_search = branch_or_search
-		self.static_stats = static_stats
-		self.specific_stats = specific_stats
-		self.q_hat = q_hat
-		self.step_number = step_number
-		self.cost_of_action = 2*(branch_or_search == 'branch') + self.alpha*(branch_or_search == 'search')
-		if prev_action is None:
-			self.cost_so_far = self.cost_of_action
-		else:
-			self.cost_so_far = prev_action.cost_so_far + self.cost_of_action
 
-	def get_record(self, total_cost):
-# TODO: leaving off here
-		q_array = np.array([self.q_hat, -self.cost_so_far], dtype=float)
-		record = np.concatenate([self.static_stats, self.specific_stats, q_array])
-		return(record)
-class rl_env:
+# TODO: add change in optimality gap as reward
+# optimality gap = (UB - LB) / UB
+# initial LB = primal solution to initial relaxation
+# initial UB = upper bound based on  solution of initial relaxation. It is the integer solution
+# found by doing least squares regression using the support of the primal solution and setting
+# all z_i of the support to 1.
+# LB updates as min over active nodes of primal solutions, sometimes the prior min
+# of primal solutions is no longer active (i.e. if it was the primal solution to 
+# the relaxation of the node that was just branched) so, if branching the node with 
+# current best primal then we have to compare across all nodes, otherwise we can just
+# compare to the current best
+
+# UB updates to min of searched integer solutions and upper bound integer solutions of active nodes
+# but we can just track the one current best integer solutions because those
+# don't go stale, i.e. even when a node is no longer active, the upper bound of that node is still in effect.
+ 
+# TODO: record stats on model and agent performance
+
+
+# class inherit from node, so that we can add an attribute for 'searched'
+class rl_node(Node):
+	def __init__(self, parent, zlb: list, zub: list, x, y, xi_norm):
+		super().__init__(parent, zlb, zub, x=x, y=y, xi_norm=xi_norm)
+		self.searched = 0
+
+
+class rl_env(gym.Env):
 	def __init__(self, l0=10**-4, l2=1, p=10**3, m=5, alpha=1, greedy_epsilon=0.3, \
-			branch_model_name='branch_model_in58_lay2_0', \
-			search_model_name='search_model_in49_lay2_0'):
-		""" greedy_epsilon is the probability of choosing random exploration, for testing set to zero."""
+			branch_model_name='branch_model_in60_lay2_0', \
+			search_model_name='search_model_in51_lay2_0'):
+
+		""" Note: 'greedy_epsilon' is the probability of choosing random exploration, 
+		for testing performance after training, set greedy_epsilon to zero."""
+
+		self.action_space = gym.spaces.Discrete(2)
+		self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(65,))
 		self.l0 = l0
 		self.l2 = l2
 		self.p = p
@@ -78,7 +91,17 @@ class rl_env:
 		self.curr_best_int_beta = None
 		self.curr_best_int_support = None
 		self.current_action = None
-		self.state = None
+		self.state = None  # This is the representation of the state passed to agent (see comment below).
+		self.lower_bound = None  # The minimum primal value over all active nodes.  This is the best
+		# case scenario, i.e. how good any integer solution yet to be found could be.
+		self.lower_bound_node_key = None # The key of the node with the lowest primal value
+
+		# Note: If the lower_bound_node is selected for branching then the new lower_bound is found
+		# as the min of primal values over all active nodes.  If any other node is selected for branching,
+		# then the lower_bound is unchanged. This is because branching removes space from the feasible region and 
+		# therefore can only increase or not change the primal value of the branched node, so if a node
+		# was already not node with minimal primal value, neither daughter node can be either.
+		self.optimality_gap = None
 
 	def reset(self, x_file_name=None):
 		"""
@@ -114,12 +137,17 @@ class rl_env:
 		
 		### Initialize a 'BNBTree' object (as defined in 'l0bnb'), and initialize its root node
 		t = BNBTree(self.x, self.y)
-		t.root = Node(parent=None, zlb=[], zub=[], x=t.x, y=t.y, xi_norm=t.xi_norm)
+		t.root = rl_node(parent=None, zlb=[], zub=[], x=t.x, y=t.y, xi_norm=t.xi_norm)
 		self.active_nodes['root_node'] = t.root
 		active_x_i = list(range(self.p))
 		# Note: 'lower_solve' returns the primal value and dual value, and it updates
 		# t.root.primal_value, .dual_value, .primal_beta, .z, .support, .r, .gs_xtr, and .gs_xb
 		t.root.lower_solve(self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+		self.lower_bound = t.root.primal_value
+		t.root.upper_solve(self.l0, self.l2, m=5)
+		self.update_curr_best_int_sol(t.root, 'upper')
+		self.optimality_gap = \
+			(self.curr_best_int_primal - self.lower_bound) / abs(self.curr_best_int_primal)
 
 		#### Gather stats for 'observation'
 		self.cov = self.x.shape[0] * np.cov(self.x, rowvar=False, bias=True)
@@ -153,47 +181,7 @@ class rl_env:
 	def get_info(self):
 		return(f'node count: {self.node_counter} \nsearch count: {self.search_counter} \nstep count: {self.step_counter} \nx_file_name: {self.x_file_name}')
 
-	def eliminate_nodes(self, node_key):
-		node = self.active_nodes[node_key]
-		
-		# Can the node be eliminated?
-		if self.curr_best_int_primal < node.primal_value:
-			del self.active_nodes[node_key]
 
-		# Is the  new node an integer solution?
-		# If so, then it is the new best integer solution, because otherwise it would have been
-		# eliminated in the step above. 
-		elif int_sol(node, p=self.p, int_tol=self.int_tol, m=self.m):
-			self.curr_best_int_primal = node.primal_value
-			self.curr_best_int_beta = node.primal_beta.copy()
-			self.curr_best_int_support = node.support.copy()
-			del self.active_nodes[node_key]
-
-			# Can other nodes be eliminated?
-			for other_key in list(self.active_nodes.keys()):
-				if self.active_nodes[other_key].primal_value > self.curr_best_int_primal:
-					del self.active_nodes[other_key]
-
-	def eliminate_after_search(self, search_betas, search_support):
-		if search_support.shape[0] == 1:
-			residuals = self.y - np.dot(self.x[:,search_support],  search_betas)
-		else:
-			residuals = self.y - np.matmul(self.x[:,search_support], search_betas)
-
-		rss = np.dot(residuals, residuals)
-
-		search_sol_primal = rss/2 + self.l0*search_support.shape[0] + self.l2*np.dot(search_betas, search_betas)
-
-		if search_sol_primal < self.curr_best_int_primal:
-			# Update current best integer solution
-			self.curr_best_int_primal = search_sol_primal.copy()
-			self.curr_best_int_beta = search_betas.copy()
-			self.curr_best_int_support = search_support.copy()
-
-			# Can other nodes be eliminated?
-			for key in list(self.active_nodes.keys()):
-				if self.active_nodes[key].primal_value > self.curr_best_int_primal:
-					del self.active_nodes[key]
 	
 	def record_action_stats(self, branch_stats, branch_keys, search_stats, search_keys, branch_q_hats, search_q_hats):
 		""" Selects the branching option and searching option with highest q_hats, and 
@@ -206,6 +194,16 @@ class rl_env:
 		self.state['search_option_stats'] = search_stats[search_ind, :]
 		self.state['search_option_key'] = search_keys[search_ind]
 		self.state['search_q_hat'] = search_q_hats[search_ind]
+
+	def update_curr_best_int_sol(self, node, primal_or_upper):
+		if primal_or_upper == 'primal':
+			self.curr_best_int_primal = node.primal_value
+			self.curr_best_int_beta = node.primal_beta.copy()
+			self.curr_best_int_support = node.support.copy()
+		else:
+			self.curr_best_int_primal = node.upper_bound
+			self.curr_best_int_beta = node.upper_beta.copy()
+			self.curr_best_int_support = node.support.copy()
 
 	def step(self, action):
 		"""
@@ -235,10 +233,29 @@ class rl_env:
 			self.search_counter += 1
 			search_node_key = self.state['search_option_key']
 			search_node = self.active_nodes[search_node_key]
+			search_node.searched = 1
 			search_support, search_betas = \
 				get_search_solution(node=search_node, p=self.p, l0=self.l0, l2=self.l2, y=self.y)
-			self.eliminate_after_search(search_betas, search_support)
 
+			# Find primal value of search solution	
+			if search_support.shape[0] == 1:
+				residuals = self.y - np.dot(self.x[:,search_support],  search_betas)
+			else:
+				residuals = self.y - np.matmul(self.x[:,search_support], search_betas)
+			rss = np.dot(residuals, residuals)
+			# prin(rss=rss, search_support_shape=search_support.shape[0], search_betas=search_betas)
+			search_sol_primal = rss/2 + self.l0*search_support.shape[0] + self.l2*np.dot(search_betas, search_betas)
+
+			# Check for update to best integer solution
+			if search_sol_primal < self.curr_best_int_primal:
+				# Update current best integer solution
+				self.curr_best_int_primal = search_sol_primal.copy()
+				self.curr_best_int_beta = search_betas.copy()
+				self.curr_best_int_support = search_support.copy()
+				# Check all nodes for elimination
+				for node_key in list(self.active_nodes.keys()):
+					if self.active_nodes[node_key].primal_value > self.curr_best_int_primal:
+						del self.active_nodes[node_key]
 		else:
 			# Branch
 			branch_x_i = int(self.state['branch_option_keys'][0])
@@ -252,31 +269,76 @@ class rl_env:
 			self.node_counter += 1
 			node_name_1 = f'node_{self.node_counter}'
 			self.active_nodes[node_name_1] = \
-				Node(parent=branch_node, zlb=new_zlb, zub=branch_node.zub)
+				rl_node(parent=branch_node, zlb=new_zlb, zub=branch_node.zub, \
+				x=branch_node.x, y=branch_node.y, xi_norm=branch_node.xi_norm)
 			self.node_counter +=1
 			node_name_2 = f'node_{self.node_counter}'
 			self.active_nodes[node_name_2] = \
-				Node(parent=branch_node, zlb=branch_node.zlb, zub=new_zub)
-
+				rl_node(parent=branch_node, zlb=branch_node.zlb, zub=new_zub, \
+				x=branch_node.x, y=branch_node.y, xi_norm=branch_node.xi_norm)
 			del self.active_nodes[branch_node_key] 
 
-			### Solve relaxations in new nodes
 			# TODO: look into the following (from 'tree.solve') ...
 			# "upper_bound, upper_beta, support = self._warm_start(warm_start, verbose, l0, l2, m)"
-			self.active_nodes[node_name_1].lower_solve(self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
-			self.active_nodes[node_name_2].lower_solve(self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+
+			### Solve relaxations in new nodes
+			self.active_nodes[node_name_1].lower_solve(\
+				self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+			self.active_nodes[node_name_2].lower_solve(\
+				self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+
+			### Update current best int solution
+			updated = False
+			# node 1
+			if int_sol(self.active_nodes[node_name_1], p=self.p, int_tol=self.int_tol, m=self.m):
+				if self.active_nodes[node_name_1].primal_value < self.curr_best_int_primal:
+					self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'primal')
+					updated = True
+				del self.active_nodes[node_name_1]
+			else:
+				n_1_ub = self.active_nodes[node_name_1].upper_solve(self.l0, self.l2, m=5)
+				if n_1_ub < self.curr_best_int_primal:
+					self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'upper')
+					updated = True
+			# repeat for node 2
+			if int_sol(self.active_nodes[node_name_2], p=self.p, int_tol=self.int_tol, m=self.m):
+				if self.active_nodes[node_name_2].primal_value < self.curr_best_int_primal:
+					self.update_curr_best_int_sol(self.active_nodes[node_name_2], 'primal')
+					updated = True
+				del self.active_nodes[node_name_2]
+			else:
+				n_2_ub = self.active_nodes[node_name_2].upper_solve(self.l0, self.l2, m=5)
+				if n_2_ub < self.curr_best_int_primal:
+					self.update_curr_best_int_sol(self.active_nodes[node_name_2], 'upper')
+					updated = True
+
+			# Check for eliminations
+			if updated:
+				# check all nodes for elimination
+				for node_key in list(self.active_nodes.keys()):
+					if self.active_nodes[node_key].primal_value > self.curr_best_int_primal:
+						del self.active_nodes[node_key]
+			else:
+				# Check n_1 and n_2 for elimination
+				for node_key in (node_name_1, node_name_2):
+					if node_key in self.active_nodes:
+						if self.active_nodes[node_key].primal_value > self.curr_best_int_primal:
+							del self.active_nodes[node_key]
+	
+			# TODO:  pick up here, looking at getattr(), for below
 			
-			### Check to see if any nodes can be eliminated
-			self.eliminate_nodes(node_key=node_name_1) # Note: this might eliminate the 2nd new node
-			if self.active_nodes.get(node_name_2, 0) != 0:
-				self.eliminate_nodes(node_key=node_name_2)
+			### Update lower_bound and lower_bound_node_key
+#			if branch_node_key == lower_bound_node_key:
+				# TODO: take minimum of primal values over active nodes
+			# else: lower_bound remains unchanged
+			
 
 		### If we're done ...
 		if len(self.active_nodes) == 0:
 			# Get record of most recent action taken
 			branch_action_records, search_action_records = [], []
 			action = self.current_action
-			total_cost = action.cost_so_far.copy()
+			total_cost = action.cost_so_far
 			if action.branch_or_search == 'branch':
 				branch_action_records.append(action.get_record(total_cost).copy())
 			else:

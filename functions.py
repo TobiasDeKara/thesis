@@ -10,10 +10,16 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # 3 = INFO, WARNING, and ERROR messages are not printed 
 
 
-def get_q_hats(model_name, stats,  static_stats): 
+def get_q_hats(model_name, action_stats,  static_stats):
 	model = tf.keras.models.load_model(os.path.join('./models/', model_name))
-	n_stats = stats.shape[0]
-	model_input = np.hstack((np.tile(static_stats, (n_stats,1)), stats))
+
+	# When getting q hats for all branhcing or all searching options, action_stats is a 2 dim
+	# array where each row represents an available action.
+	# When getting a single q hat (because of epsilon greedy policy), action_stats is a 1 dim array.
+	if action_stats.ndim == 1:
+		action_stats.shape = (1,-1)
+	n_stats = action_stats.shape[0]
+	model_input = np.hstack((np.tile(static_stats, (n_stats,1)), action_stats))
 	model_input = tf.constant(model_input)
 	q_hats = model.predict(model_input)
 	
