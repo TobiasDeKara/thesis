@@ -9,6 +9,10 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # 2 = INFO and WARNING messages are not printed
 # 3 = INFO, WARNING, and ERROR messages are not printed 
 
+def reverse_lookup(d, val):
+  for key in d:
+    if d[key] == val:
+      return key
 
 def get_q_hats(model_name, action_stats,  static_stats):
 	model = tf.keras.models.load_model(os.path.join('./models/', model_name))
