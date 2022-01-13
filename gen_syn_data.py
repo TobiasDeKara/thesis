@@ -13,7 +13,6 @@ import numpy as np
 from numpy.random import multivariate_normal, normal
 import os
 
-
 make_syn_data(n_mat=1000, p=5, supp_size=1)
     
 def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
@@ -63,7 +62,7 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
         var_xb = (np.std(mu, ddof=1)) ** 2
         sd_epsilon = np.sqrt(var_xb / snr)
         epsilon = normal(size=n, scale=sd_epsilon)
-        y = mu + epsilon
+        y = mu + epsilon.reshape(-1,1)
         y_centered = y - np.mean(y)
         y_normalized = y_centered / np.linalg.norm(y_centered)
     
