@@ -17,28 +17,31 @@ from stat_functions import *
 import math
 from action_taken import action_taken
 from operator import attrgetter
+import re
+
+# TODO: Pandas data frame for model records
 
 # Note on optimality gap:
 # optimality gap = (upper bound - lower bound) / lower bound
 # The upper bound is defined as the minimum objective value of all known
 # integer solutions, and below we use the variable 'curr_best_int_primal'.
 # For each new node that is created by branching we use 'lower_solve' to find the 
-# primal solution to the relaxation.  We then use 'upper_solve' which calculates
+# primal solution to the relaxation.    We then use 'upper_solve' which calculates
 # an integer solution by taking the support of the relaxation solution and setting
-# all z_i to 1.  Thus, we have one known integer solution per node in addition 
-# to any integer solutions discovered using the search sub-routine.  The minimum
-# of these is the upper bound.  When branching, the integer solution returned 
+# all z_i to 1.    Thus, we have one known integer solution per node in addition 
+# to any integer solutions discovered using the search sub-routine.    The minimum
+# of these is the upper bound.    When branching, the integer solution returned 
 # by 'upper_solve' for each daughter node can be greater than, equal to, or less
-# than the integer solution for the parent node.  So after every branch and every
+# than the integer solution for the parent node.    So after every branch and every
 # search we have to check for changes to the upper bound (again, referred to as
-# 'curr_best_int_primal').  
+# 'curr_best_int_primal').    
 # The lower bound is defined as the minimum primal objective value of relaxations
-# over all active nodes.  Searching does not affect the primal values(and elimination 
-# after searching cannot remove the node that has the minimal relaxation primal value).  
+# over all active nodes.    Searching does not affect the primal values(and elimination 
+# after searching cannot remove the node that has the minimal relaxation primal value).    
 # When branching, the primal values of the daughter nodes are always greater than
-# or equal to the primal value of the parent node.  Therefore, if we branch 
+# or equal to the primal value of the parent node.    Therefore, if we branch 
 # on a node that does not have the current minimum primal, then the lower
-# bound will not change.  We only have to check for changes to the lower bound
+# bound will not change.    We only have to check for changes to the lower bound
 # when we branch the node that does have the current minimum primal.
 
 
@@ -52,9 +55,9 @@ class rl_node(Node):
 
 
 class rl_env(gym.Env):
-	def __init__(self, l0=10**-4, l2=1, p=10**3, m=5, alpha=1, greedy_epsilon=0.3, \
-			branch_model_name='branch_model_in60_lay2_0', \
-			search_model_name='search_model_in51_lay2_0'):
+	def __init__(self, l0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, \
+	branch_model_name='branch_model_in60_lay2_0', branch_model_epoch=-1, \
+	search_model_name='search_model_in51_lay2_0', search_model_epoch=-1):
 
 		""" Note: 'greedy_epsilon' is the probability of choosing random exploration, 
 		for testing performance after training, set greedy_epsilon to zero."""
@@ -67,27 +70,29 @@ class rl_env(gym.Env):
 		self.branch_model_name = branch_model_name
 		self.search_model_name = search_model_name
 		self.greedy_epsilon = greedy_epsilon
+		self.branch_model_epoch = branch_model_epoch
+		self.search_model_epoch = search_model_epoch
 
 		# For mini data (p=5)
 		if p==5:
-			self.x_file_list = subprocess.run( \
-				f"cd synthetic_data; ls x*_pmini_* -1U", \
-				capture_output=True, text=True, shell=True).stdout.splitlines()
+		    self.x_file_list = subprocess.run( \
+		    	f"cd synthetic_data; ls x*_pmini_* -1U", \
+		    	capture_output=True, text=True, shell=True).stdout.splitlines()
 		# For all other data (p in {10**3, 10**4, 10**5, 10**6})
 		else:
-			self.x_file_list = subprocess.run( \
-				f"cd synthetic_data; ls x*_p{int(np.log10(self.p))}_* -1U", \
-				capture_output=True, text=True, shell=True).stdout.splitlines()
+		    self.x_file_list = subprocess.run( \
+		    	f"cd synthetic_data; ls x*_p{int(np.log10(self.p))}_* -1U", \
+		    	capture_output=True, text=True, shell=True).stdout.splitlines()
 
 		self.int_tol = 10**-4
 		# m=5 works well for our synthetic data, but will need to adjusted for other data sets.
-		self.m = m	
-		self.alpha = alpha
+		self.m = m
 
 		# All of the following attributes are reset in 'reset()' below.
 		self.x_file_name = None
 		self.active_nodes = None
 		self.node_counter = 0
+		self.branch_counter = 0
 		self.search_counter = 0
 		self.step_counter = 0
 		self.x = None
@@ -98,16 +103,10 @@ class rl_env(gym.Env):
 		self.curr_best_int_beta = None
 		self.curr_best_int_support = None
 		self.current_action = None
-		self.state = None  # This is the representation of the state passed to agent (see comment below).
-		self.lower_bound = None  # The minimum primal value over all active nodes.  This is the best
+		self.state = None    # This is the representation of the state passed to agent (see comment below).
+		self.lower_bound = None    # The minimum primal value over all active nodes.    This is the best
 		# case scenario, i.e. how good any integer solution yet to be found could be.
 		self.lower_bound_node_key = None # The key of the node with the lowest primal value
-
-		# Note: If the lower_bound_node is selected for branching then the new lower_bound is found
-		# as the min of primal values over all active nodes.  If any other node is selected for branching,
-		# then the lower_bound is unchanged. This is because branching removes space from the feasible region and 
-		# therefore can only increase or not change the primal value of the branched node, so if a node
-		# was already not node with minimal primal value, neither daughter node can be either.
 		self.optimality_gap = None
 
 	def reset(self, x_file_name=None):
@@ -116,6 +115,7 @@ class rl_env(gym.Env):
 		""" 
 		self.active_nodes = dict()
 		self.node_counter = 0
+		self.branch_counter = 0
 		self.search_counter = 0
 		self.step_counter = 0
 		self.x = None
@@ -130,8 +130,10 @@ class rl_env(gym.Env):
 		# search_option_stats, search_option_key, search_q_hat
 
 		if x_file_name is None:
-			# Randomly select data from the test bed, with the given number of variables, 'self.p'
-			x_file_name = np.random.choice(self.x_file_list)
+		    # Randomly select data from the test bed, with the given number of variables, 'self.p'
+		    random_index = np.random.randint(len(self.x_file_list))
+		    x_file_name = self.x_file_list.pop(random_index)
+		    print(len(self.x_file_list))
 
 		self.x_file_name = x_file_name
 	
@@ -154,31 +156,31 @@ class rl_env(gym.Env):
 		t.root.upper_solve(self.l0, self.l2, m=5)
 		self.update_curr_best_int_sol(t.root, 'upper')
 		self.optimality_gap = \
-			(self.curr_best_int_primal - self.lower_bound) / self.lower_bound
+		    (self.curr_best_int_primal - self.lower_bound) / self.lower_bound
 
 		#### Gather stats for 'observation'
 		self.cov = self.x.shape[0] * np.cov(self.x, rowvar=False, bias=True)
 		self.state['static_stats'] = get_static_stats(self.cov, self.x, self.y, \
-		  	self.active_nodes, active_x_i, global_stats)
+		    	self.active_nodes, active_x_i, global_stats)
 
 		### Begin epsilon greedy policy
 		random_number = np.random.random()
 		if random_number < self.greedy_epsilon:
-			# Choose random branch and search actions, and get stats
-			branch_stats, search_stats, branch_keys, search_keys = \
-				get_random_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
+		    # Choose random branch and search actions, and get stats
+		    branch_stats, search_stats, branch_keys, search_keys = \
+		    	get_random_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
 		else:
-			# Get stats for all available actions
-			branch_stats, search_stats, branch_keys, search_keys = \
-				get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
+		    # Get stats for all available actions
+		    branch_stats, search_stats, branch_keys, search_keys = \
+		    	get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
 		
 		# Get q_hats by applying models
 		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'])
 		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'])
 
 		# Record stats, keys and q_hats for the branch and search actions passed to the agent
-		self.record_action_stats(branch_stats, branch_keys, search_stats, search_keys, \
-		  	branch_q_hats, search_q_hats)
+		self.attach_action_option_stats(branch_stats, branch_keys, search_stats, search_keys, \
+		    	branch_q_hats, search_q_hats)
 
 		# Gather return values
 		observation = np.concatenate([self.state['static_stats'], self.state['branch_option_stats'], \
@@ -186,18 +188,23 @@ class rl_env(gym.Env):
 		
 		# prin(init_og = self.optimality_gap, init_ub = self.curr_best_int_primal, init_lb=self.lower_bound)
 		return(observation)
-  	#### End of reset() #######
+    	#### End of reset() #######
 
 
 	def get_info(self):
-		return(f'node count: {self.node_counter} \nsearch count: {self.search_counter} \
-		  	\nstep count: {self.step_counter} \nx_file_name: {self.x_file_name}')
+		return(f'node count: {self.node_counter} \nbranch_count: {self.branch_counter} \
+            \nsearch count: {self.search_counter} \nstep count: {self.step_counter} \
+            \nx_file_name: {self.x_file_name}')
 	
-	def record_action_stats(self, branch_stats, branch_keys, search_stats, search_keys, \
-	  	branch_q_hats, search_q_hats):
-		""" Selects the branching option and searching option with highest q_hats, and 
-			attaches to the rl_env the stats, keys, and q_hats for the chosen actions and """
-		branch_ind = np.argmax(branch_q_hats)
+	def attach_action_option_stats(self, branch_stats, branch_keys, search_stats, search_keys, \
+	branch_q_hats, search_q_hats):
+		""" Attaches the stats, keys, and q_hats of the branch option and the search 
+		option that are passed to the external agent.
+		to the rl_env """
+		# Select options to be passed to agent by taking arg max of q-hats
+		# Note that when (random_number < greedy_epsilong) only one option is passed in,
+		# and taking the arg max in that case is not strictly necessary.
+		branch_ind = np.argmax(branch_q_hats) 
 		self.state['branch_option_stats'] = branch_stats[branch_ind, :]
 		self.state['branch_option_keys'] = branch_keys[branch_ind, :]
 		self.state['branch_q_hat'] = branch_q_hats[branch_ind]
@@ -205,246 +212,320 @@ class rl_env(gym.Env):
 		self.state['search_option_stats'] = search_stats[search_ind, :]
 		self.state['search_option_key'] = search_keys[search_ind]
 		self.state['search_q_hat'] = search_q_hats[search_ind]
-
+        
 	def update_curr_best_int_sol(self, node, primal_or_upper):
-		if primal_or_upper == 'primal':
-			self.curr_best_int_primal = node.primal_value
-			self.curr_best_int_beta = node.primal_beta.copy()
-			self.curr_best_int_support = node.support.copy()
-		else:
-			self.curr_best_int_primal = node.upper_bound
-			self.curr_best_int_beta = node.upper_beta.copy()
-			self.curr_best_int_support = node.support.copy()
+	    """ Updates whenever we find an integer solution that is better than 
+	    the current best integer solution.
+	    primal_or_upper: 'primal' if the integer solution was discovered 
+	    as the primal solution of a new node after branching, else 'upper'"""
+
+	    if primal_or_upper == 'primal':
+		    self.curr_best_int_primal = node.primal_value
+		    self.curr_best_int_beta = node.primal_beta.copy()
+		    self.curr_best_int_support = node.support.copy()
+	    else:
+		    self.curr_best_int_primal = node.upper_bound
+		    self.curr_best_int_beta = node.upper_beta.copy()
+		    self.curr_best_int_support = node.support.copy()
 
 	def step(self, action):
 		"""
-		action: 0 or 1, 0 indicates that the branching option has been chosen, 1 indciates the searching option
+		action: 0 or 1.    0 for branching, and 1 for searching
 		"""
 		self.step_counter += 1
-
-		### Update self.current_action
-		prev_action = self.current_action if self.step_counter > 1 else None
-		if action == 0:
-			# branching option chosen
-			branch_or_search = 'branch'
-			specific_stats = self.state['branch_option_stats']
-			q_hat = self.state['branch_q_hat']
-		else:
-			# searching option chosen
-			branch_or_search = 'search'
-			specific_stats = self.state['search_option_stats']
-			q_hat = self.state['search_q_hat']
-
-		self.current_action = action_taken(self.alpha, prev_action, branch_or_search, self.state['static_stats'], \
-				specific_stats, q_hat, self.step_counter)
 		
 		### Implement action
-		if branch_or_search == 'search':
-			# Search
-			self.search_counter += 1
-			search_node_key = self.state['search_option_key']
-			search_node = self.active_nodes[search_node_key]
-			search_node.searched = 1
-			search_support, search_betas = \
-				get_search_solution(node=search_node, p=self.p, l0=self.l0, l2=self.l2, y=self.y)
+		if action == 1:
+		    # search
+		    branch_or_search = 'search'
+		    self.search_counter += 1
+		    search_node_key = self.state['search_option_key']
+		    search_node = self.active_nodes[search_node_key]
+		    search_node.searched = 1
+		    search_support, search_betas = \
+		    	get_search_solution(node=search_node, p=self.p, l0=self.l0, l2=self.l2, y=self.y)
 
-			# Find primal value of search solution	
-			if search_support.shape[0] == 1:
-				residuals = self.y - np.dot(self.x[:,search_support],  search_betas)
-			else:
-				residuals = self.y - np.matmul(self.x[:,search_support], search_betas)
-			rss = np.dot(residuals, residuals)
-			search_sol_primal = rss/2 + self.l0*search_support.shape[0] + self.l2*np.dot(search_betas, search_betas)
+		    # Find primal value of search solution	
+		    if search_support.shape[0] == 1:
+		    	residuals = self.y - np.dot(self.x[:,search_support],    search_betas)
+		    else:
+		    	residuals = self.y - np.matmul(self.x[:,search_support], search_betas)
+		    rss = np.dot(residuals, residuals)
+		    search_sol_primal = rss/2 + self.l0*search_support.shape[0] + \
+		        self.l2*np.dot(search_betas, search_betas)
 
-			# Check if new solution is best so far
-			if search_sol_primal < self.curr_best_int_primal:
-				# Update current best integer solution
-				self.curr_best_int_primal = search_sol_primal.copy()
-				self.curr_best_int_beta = search_betas.copy()
-				self.curr_best_int_support = search_support.copy()
-				# Check all nodes for elimination
-				for node_key in list(self.active_nodes.keys()):
-					if self.active_nodes[node_key].primal_value > self.curr_best_int_primal:
-						del self.active_nodes[node_key]
-		else:
-			# Branch
-			branch_x_i = int(self.state['branch_option_keys'][0])
-			branch_node_key = self.state['branch_option_keys'][1]
-			branch_node = self.active_nodes[branch_node_key]
+		    # Check if new solution is best so far
+		    if search_sol_primal < self.curr_best_int_primal:
+		    	# Update current best integer solution
+		    	self.curr_best_int_primal = search_sol_primal.copy()
+		    	self.curr_best_int_beta = search_betas.copy()
+		    	self.curr_best_int_support = search_support.copy()
+		    	# Check all nodes for elimination
+		    	for node_key in list(self.active_nodes.keys()):
+		    		if self.active_nodes[node_key].primal_value > self.curr_best_int_primal:
+		    		    del self.active_nodes[node_key]
+		    #### End of Search routine
+		    
+		if action == 0:
+		    # branch
+		    branch_or_search = 'branch'
+		    self.branch_counter += 1
+		    branch_x_i = int(self.state['branch_option_keys'][0])
+		    branch_node_key = self.state['branch_option_keys'][1]
+		    branch_node = self.active_nodes[branch_node_key]
 
-			new_zlb = branch_node.zlb.copy()
-			new_zlb.append(branch_x_i)
-			new_zub = branch_node.zub.copy()
-			new_zub.append(branch_x_i)
-			self.node_counter += 1
-			node_name_1 = f'node_{self.node_counter}'
-			self.active_nodes[node_name_1] = \
-				rl_node(parent=branch_node, zlb=new_zlb, zub=branch_node.zub, \
-				x=branch_node.x, y=branch_node.y, xi_norm=branch_node.xi_norm)
-			self.node_counter +=1
-			node_name_2 = f'node_{self.node_counter}'
-			self.active_nodes[node_name_2] = \
-				rl_node(parent=branch_node, zlb=branch_node.zlb, zub=new_zub, \
-				x=branch_node.x, y=branch_node.y, xi_norm=branch_node.xi_norm)
-			del self.active_nodes[branch_node_key] 
+		    new_zlb = branch_node.zlb.copy()
+		    new_zlb.append(branch_x_i)
+		    new_zub = branch_node.zub.copy()
+		    new_zub.append(branch_x_i)
+		    self.node_counter += 1
+		    node_name_1 = f'node_{self.node_counter}'
+		    self.active_nodes[node_name_1] = \
+		    	rl_node(parent=branch_node, zlb=new_zlb, zub=branch_node.zub, \
+		    	x=branch_node.x, y=branch_node.y, xi_norm=branch_node.xi_norm)
+		    self.node_counter +=1
+		    node_name_2 = f'node_{self.node_counter}'
+		    self.active_nodes[node_name_2] = \
+		    	rl_node(parent=branch_node, zlb=branch_node.zlb, zub=new_zub, \
+		    	x=branch_node.x, y=branch_node.y, xi_norm=branch_node.xi_norm)
+		    del self.active_nodes[branch_node_key] 
 
-			# TODO: look into the following (from 'tree.solve') ...
-			# "upper_bound, upper_beta, support = self._warm_start(warm_start, verbose, l0, l2, m)"
+		    # TODO: look into the following (from 'tree.solve') ...
+		    # "upper_bound, upper_beta, support = self._warm_start(warm_start, verbose, l0, l2, m)"
 
-			### Solve relaxations in new nodes
-			self.active_nodes[node_name_1].lower_solve(\
-				self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
-			self.active_nodes[node_name_2].lower_solve(\
-				self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+		    # Solve relaxations in new nodes
+		    self.active_nodes[node_name_1].lower_solve(\
+		    	self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+		    self.active_nodes[node_name_2].lower_solve(\
+		    	self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
 
-			### Update current best int solution (aka upper bound)
-			upper_bound_updated = False
-			# Check if node 1 relaxation solution is integer, and if so check if best so far
-			if int_sol(self.active_nodes[node_name_1], p=self.p, int_tol=self.int_tol, m=self.m):
-				if self.active_nodes[node_name_1].primal_value < self.curr_best_int_primal:
-					self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'primal')
-					upper_bound_updated = True
-				del self.active_nodes[node_name_1]
-			else:  # If not int., find node 1 upper bound, and check if best so far
-				n_1_ub = self.active_nodes[node_name_1].upper_solve(self.l0, self.l2, m=5)
-				if n_1_ub < self.curr_best_int_primal:
-					self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'upper')
-					upper_bound_updated = True
-			# repeat for node 2
-			if int_sol(self.active_nodes[node_name_2], p=self.p, int_tol=self.int_tol, m=self.m):
-				if self.active_nodes[node_name_2].primal_value < self.curr_best_int_primal:
-					self.update_curr_best_int_sol(self.active_nodes[node_name_2], 'primal')
-					upper_bound_updated = True
-				del self.active_nodes[node_name_2]
-			else:
-				n_2_ub = self.active_nodes[node_name_2].upper_solve(self.l0, self.l2, m=5)
-				if n_2_ub < self.curr_best_int_primal:
-					self.update_curr_best_int_sol(self.active_nodes[node_name_2], 'upper')
-					upper_bound_updated = True
+		    # Update current best integer solution (aka upper bound)
+		    upper_bound_updated = False
+		    # Check if node 1 relaxation solution is integer, and if so check if best so far
+		    if int_sol(self.active_nodes[node_name_1], p=self.p, int_tol=self.int_tol, m=self.m):
+		    	if self.active_nodes[node_name_1].primal_value < self.curr_best_int_primal:
+		    		self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'primal')
+		    		upper_bound_updated = True
+		    	del self.active_nodes[node_name_1]
+		    else:    # If not int., find node 1 upper bound, and check if best so far
+		    	n_1_ub = self.active_nodes[node_name_1].upper_solve(self.l0, self.l2, m=5)
+		    	if n_1_ub < self.curr_best_int_primal:
+		    		self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'upper')
+		    		upper_bound_updated = True
+		    # repeat for node 2
+		    if int_sol(self.active_nodes[node_name_2], p=self.p, int_tol=self.int_tol, m=self.m):
+		    	if self.active_nodes[node_name_2].primal_value < self.curr_best_int_primal:
+		    		self.update_curr_best_int_sol(self.active_nodes[node_name_2], 'primal')
+		    		upper_bound_updated = True
+		    	del self.active_nodes[node_name_2]
+		    else:
+		    	n_2_ub = self.active_nodes[node_name_2].upper_solve(self.l0, self.l2, m=5)
+		    	if n_2_ub < self.curr_best_int_primal:
+		    		self.update_curr_best_int_sol(self.active_nodes[node_name_2], 'upper')
+		    		upper_bound_updated = True
 
-			# Check for eliminations
-			if upper_bound_updated:
-				# check all nodes for elimination
-				for node_key in list(self.active_nodes.keys()):
-					if self.active_nodes[node_key].primal_value > self.curr_best_int_primal:
-						del self.active_nodes[node_key]
-			else:
-				# Check n_1 and n_2 for elimination
-				for node_key in (node_name_1, node_name_2):
-					if node_key in self.active_nodes:
-						if self.active_nodes[node_key].primal_value > self.curr_best_int_primal:
-							del self.active_nodes[node_key]
+		    # Check for eliminations
+		    if upper_bound_updated:
+		    	# check all nodes for elimination
+		    	for node_key in list(self.active_nodes.keys()):
+		    		if self.active_nodes[node_key].primal_value > self.curr_best_int_primal:
+		    		    del self.active_nodes[node_key]
+		    else:
+		    	# Check n_1 and n_2 for elimination
+		    	for node_key in (node_name_1, node_name_2):
+		    		if node_key in self.active_nodes:
+		    		    if self.active_nodes[node_key].primal_value > self.curr_best_int_primal:
+		    		    	del self.active_nodes[node_key]
 	
-			### Update lower_bound and lower_bound_node_key
-			if branch_node_key == self.lower_bound_node_key:
-			  	self.lower_bound = min(self.active_nodes.values(), key=attrgetter('primal_value'))
-			  	self.lower_bound_node_key = reverse_lookup(active_nodes, \
-					min(self.active_nodes.values(), key=attrgetter('primal_value')))
-			# else: lower_bound remains unchanged
-			
-			###### End of Branch routine ######
-			
-
-		### If we're done ...
-		if len(self.active_nodes) == 0:
-			# Get record of most recent action taken
-			branch_action_records, search_action_records = [], []
-			action = self.current_action
-			total_cost = action.cost_so_far
-			if action.branch_or_search == 'branch':
-				branch_action_records.append(action.get_record(total_cost).copy())
-			else:
-				search_action_records.append(action.get_record(total_cost).copy())
-			# Get records of previous actions taken
-			while action.prev_action is not None:
-				action = action.prev_action
-				if action.branch_or_search == 'branch':
-					branch_action_records.append(action.get_record(total_cost).copy())
-				else:
-					search_action_records.append(action.get_record(total_cost).copy())
-			# Save records
-			if branch_action_records:
-				branch_action_records = np.vstack(branch_action_records)
-				branch_record_dim = branch_action_records.shape[1]
-				branch_file_name = f'branch_action_records_dim{branch_record_dim}_{self.x_file_name}'
-				np.save(os.path.join('action_records', branch_file_name), branch_action_records)
-
-			if search_action_records:
-				search_action_records = np.vstack(search_action_records)
-				search_record_dim = search_action_records.shape[1]
-				search_file_name = f'search_action_records_dim{search_record_dim}_{self.x_file_name}'
-				np.save(os.path.join('action_records', search_file_name), search_action_records)
-		  	
-			# Gather return values
-			done = True
-			observation = f'primal value: {self.curr_best_int_primal} \nbeta: {self.curr_best_int_beta} \
-			  	\nsupport: {self.curr_best_int_support}'
-			reward = -self.current_action.cost_so_far
-			info = self.get_info()
-	
-			return(observation, reward, done, info)
-		### End of "If we're done" #########
-		  
-		### If we're NOT done . . . 
-		### Stats
-		global_stats = np.array([self.l0, self.l2, self.p])		
-		active_x_i = []
-		for node_key in self.active_nodes:
-			active_x_i = active_x_i + \
-				[k for k in range(self.p) if k not in self.active_nodes[node_key].zlb \
-				and k not in self.active_nodes[node_key].zub and k not in active_x_i]
-			if len(active_x_i) == self.p:
-				break
+		    # Update lower_bound and lower_bound_node_key
+		    if branch_node_key == self.lower_bound_node_key:
+		        	self.lower_bound = min(self.active_nodes.values(), key=attrgetter('primal_value'))
+		        	self.lower_bound_node_key = reverse_lookup(active_nodes, \
+		    		min(self.active_nodes.values(), key=attrgetter('primal_value')))
+		    # else: lower_bound remains unchanged
+		    
+		    ###### End of Branch routine ######
+		    ###### End of Implementing Action ####
 		
-		self.state['static_stats'] = get_static_stats(self.cov, self.x, self.y, \
-		  	self.active_nodes, active_x_i, global_stats)
 
-		### Begin epsilon greedy policy
-		random_number = np.random.random()
-		if random_number < self.greedy_epsilon:
-			# Choose random branch and search actions, and get stats
-			branch_stats, search_stats, branch_keys, search_keys = \
-				get_random_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
-		else:
-			# Get stats for all available actions
-			branch_stats, search_stats, branch_keys, search_keys = \
-				get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
-		
-			# Cap the number of branch and search actions passed to the q models at p**2
-			if branch_stats.shape[0] > self.p**2:
-				random_ind = np.random.choice(branch_stats.shape[0], size=self.p**2, replace=False)
-				branch_stats = branch_stats[random_ind, :]
-			if search_stats.shape[0] > self.p**2:
-				random_ind = np.random.choice(search_stats.shape[0], size=self.p**2, replace=False)
-				search_stats = search_stats[random_ind, :]
-
-		# Get q_hats by applying models
-		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'])
-		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'])
-
-		# Record stats, keys and q_hats for the branch and search actions passed to the agent
-		self.record_action_stats(branch_stats, branch_keys, search_stats, search_keys, branch_q_hats, search_q_hats)
-		
-		# Find change in optimality gap
+		### Calculate change in optimality gap 
 		prev_opt_gap = self.optimality_gap
 		self.optimality_gap = (self.curr_best_int_primal - self.lower_bound) / self.lower_bound
 		change_in_opt_gap = prev_opt_gap - self.optimality_gap
 		
+		### Attach stats on action taken <==> Update self.current_action
+		if branch_or_search == 'branch':
+		    specific_stats = self.state['branch_option_stats']
+		    q_hat = self.state['branch_q_hat']
+		    
+		if branch_or_search == 'search':
+		    specific_stats = self.state['search_option_stats']
+		    q_hat = self.state['search_q_hat']
+		    
+		prev_action = self.current_action if self.step_counter > 1 else None
+		
+		self.current_action = action_taken(prev_action, branch_or_search, \
+			    self.state['static_stats'], specific_stats, q_hat, self.step_counter, \
+			    self.branch_counter, self.search_counter, \
+			    change_in_opt_gap)
+			    
+
+		### If we're done ...
+		if len(self.active_nodes) == 0:
+		    ### Gather and save records
+		    action = self.current_action
+		    total_n_steps = action.step_number
+		    total_n_branch = action.n_branch
+		    total_n_search = action.n_search
+		    
+		    # TODO: Pandas data frame
+		    branch_action_records, search_action_records = [], []
+		    branch_model_records, search_model_records = [], []
+		    
+		    # Get records of most recent action taken
+		    action_record = np.concatenate([action.static_stats, \
+		        action.specific_stats])
+		    action_record = np.append(action_record, action.change_in_opt_gap)
+		        
+		    if action.branch_or_search == 'branch':
+		        model_epoch = self.branch_model_epoch
+		    if action.branch_or_search == 'search':
+		        model_epoch = self.search_model_epoch
+		        
+		    model_record = np.array([
+		        action.step_number, action.n_branch, action.n_search, \
+		        (total_n_steps - action.step_number), \
+		        (total_n_branch - action.n_branch), \
+		        (total_n_search - action.n_search), \
+		        action.q_hat[0], \
+		        action.change_in_opt_gap, \
+		        model_epoch])
+		    
+		    if action.branch_or_search == 'branch':
+		    	branch_action_records.append(action_record)
+		    	branch_model_records.append(action_record)
+		    else:
+		    	search_action_records.append(action_record)
+		    	search_model_records.append(action_record)
+    
+		    # Get action records of previous actions taken
+		    while action.prev_action is not None:
+		    	action = action.prev_action
+		    	action_record = np.concatenate([action.static_stats, \
+		    	action.specific_stats])
+		    	action_record = np.append(action_record, action.change_in_opt_gap)
+		            
+		    	if action.branch_or_search == 'branch':
+			    	  model_epoch = self.branch_model_epoch
+		    	if action.branch_or_search == 'search':
+			    	  model_epoch = self.search_model_epoch
+
+		    	model_record = np.array([
+		    	    action.step_number, action.n_branch, action.n_search, \
+		    	    total_n_steps - action.step_number, \
+		    	    total_n_branch - action.n_branch, \
+		    	    total_n_search - action.n_search, \
+		    	    action.q_hat[0], \
+	            action.change_in_opt_gap, \
+	            model_epoch])
+		      
+		    	if action.branch_or_search == 'branch':
+		    		branch_action_records.append(action_record)
+		    		branch_model_records.append(action_record)
+		    	else:
+		    		search_action_records.append(action_record)
+		    		search_model_records.append(action_record)
+		    		
+		    # Save records
+		    data_info = re.sub('x_', '', self.x_file_name)
+		    data_info = re.sub('.npy', '', data_info)
+		    
+		    if branch_action_records:
+		    	branch_action_records = np.vstack(branch_action_records)
+		    	branch_record_dim = branch_action_records.shape[1]
+		    	file_name = f'branch_action_records_dim{branch_record_dim}_{data_info}'
+		    	np.save(os.path.join('action_records', file_name), branch_action_records)
+		    	
+		    	branch_model_records = np.vstack(branch_model_records)
+		    	branch_record_dim = branch_model_records.shape[1]
+		    	model_data_info = data_info + f'_{self.branch_model_name}_ep{self.branch_model_epoch}'
+		    	file_name = f'branch_model_records_dim{branch_record_dim}_{model_data_info}'
+		    	np.save(os.path.join('model_records', file_name), branch_model_records)
+		    	
+		    if search_action_records:
+		    	search_action_records = np.vstack(search_action_records)
+		    	search_record_dim = search_action_records.shape[1]
+		    	file_name = f'search_action_records_dim{search_record_dim}_{data_info}'
+		    	np.save(os.path.join('action_records', file_name), search_action_records)
+		    	
+		    	search_model_records = np.vstack(search_model_records)
+		    	search_record_dim = search_model_records.shape[1]
+		    	model_data_info = data_info + f'_{self.search_model_name}_ep{self.search_model_epoch}'
+		    	file_name = f'search_model_records_dim{search_record_dim}_{model_data_info}'
+		    	np.save(os.path.join('model_records', file_name), search_model_records)
+		    
+		    ### Gather return values
+		    done = True
+		    observation = f'primal value: {self.curr_best_int_primal} \nbeta: {self.curr_best_int_beta} \
+		        	\nsupport: {self.curr_best_int_support}'
+		    reward = change_in_opt_gap
+		    info = self.get_info()
+	
+		    return(observation, reward, done, info)
+		### End of "If we're done" #########
+		    
+		    
+		### If we're NOT done . . . 
+		### Gather Stats
+		global_stats = np.array([self.l0, self.l2, self.p])		
+		active_x_i = []
+		for node_key in self.active_nodes:
+		    active_x_i = active_x_i + \
+		    	[k for k in range(self.p) if k not in self.active_nodes[node_key].zlb \
+		    	and k not in self.active_nodes[node_key].zub and k not in active_x_i]
+		    if len(active_x_i) == self.p:
+		    	break
+		
+		self.state['static_stats'] = get_static_stats(self.cov, self.x, self.y, \
+		    	self.active_nodes, active_x_i, global_stats)
+
+		### Begin epsilon greedy policy
+		random_number = np.random.random()
+		if random_number < self.greedy_epsilon:
+		    # Choose random branch and search actions, and get stats
+		    branch_stats, search_stats, branch_keys, search_keys = \
+		    	get_random_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
+		else:
+		    # Get stats for all available actions
+		    branch_stats, search_stats, branch_keys, search_keys = \
+		    	get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
+		
+		    # Cap the number of branch and search actions passed to the q models at p**2
+		    if branch_stats.shape[0] > self.p**2:
+		    	random_ind = np.random.choice(branch_stats.shape[0], size=self.p**2, replace=False)
+		    	branch_stats = branch_stats[random_ind, :]
+		    if search_stats.shape[0] > self.p**2:
+		    	random_ind = np.random.choice(search_stats.shape[0], size=self.p**2, replace=False)
+		    	search_stats = search_stats[random_ind, :]
+
+		# Get q_hats applying models 
+		# (to possilby 1 action option, all action options, or a capped # of action options)
+		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'])
+		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'])
+
+		# Attach stats, keys and q_hats for the branch and search actions passed to the agent
+		self.attach_action_option_stats(branch_stats, branch_keys, search_stats, search_keys, \
+		    branch_q_hats, search_q_hats)
+		
 		# Gather return values
 		observation = np.concatenate([self.state['static_stats'], self.state['branch_option_stats'], \
-			self.state['search_option_stats']])
+		    self.state['search_option_stats']])
 		done = False
 		reward = change_in_opt_gap
 		# prin(reward=reward, prev_opt_gap = prev_opt_gap, og = self.optimality_gap, \
-		#  ub = self.curr_best_int_primal, lb=self.lower_bound)
+		#    ub = self.curr_best_int_primal, lb=self.lower_bound)
 		info = self.get_info()
 		return(observation, reward, done, info)
-
-
-
-
-
-
 
 
 
