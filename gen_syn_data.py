@@ -6,14 +6,14 @@
 # copyright (c) 2020 [Hussein Hazimeh, and Rahul Mazumder, Ali Saab].
 
 # Variable settings: 
-# Hazimeh et al.  use: 
-# supp_size = 10, rho = 0.1, n = 10^3, p = {10^3, 10^4, 10^5, 10^6}, snr = 5
+# Bertsimas et al.  use: 
+# supp_size in {5,10}, rho in {0.5, 0.8, 0.9}?
+# Hazimeh et al, us n = 10^3, p = {10^3, 10^4, 10^5, 10^6}, snr = 5
 
 import numpy as np
 from numpy.random import multivariate_normal, normal
 import os
-
-make_syn_data(n_mat=1000, p=5, supp_size=1)
+import subprocess
     
 def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
     """Generate a synthetic regression dataset: y, x, and b.
@@ -37,6 +37,14 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
         y: The response vector.
         b: The true vector of regression coefficients.
     """
+    # Create n_th Epoch sub-directory
+    n_prev_epoch = subprocess.run('cd synthetic_data; ls -d1U */ | wc -l', capture_output=True, \
+    text=True, shell=True).stdout
+
+    epoch_n = int(n_prev_epoch) + 1
+    
+    subprocess.run(f'cd synthetic_data; mkdir epoch_{epoch_n}', shell=True)
+        
     for _ in range(n_mat):
         seed = int(10**8 * np.random.random_sample())
         np.random.seed(seed)
@@ -66,8 +74,8 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
         y_centered = y - np.mean(y)
         y_normalized = y_centered / np.linalg.norm(y_centered)
     
-        # Save 
-        path = 'synthetic_data' 
+        # Save
+        path = f'synthetic_data/epoch_{epoch_n}' 
         # Note: this is a symbolic link to /users/tdekara/data/tdekara/synthetic_data,
         #     So this is all saved in 'data' not the home directory.
         
@@ -86,7 +94,7 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
         np.save(os.path.join(path,'y' + filetag), y_normalized)
         del x, y, b
 
-
+make_syn_data(n_mat=1000, p=5, supp_size=1)
 # For Testing
 # import subprocess
 # x_file_list = subprocess.run( \
