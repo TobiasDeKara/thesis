@@ -6,6 +6,7 @@
 
 import gym
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import subprocess
 import numpy as np
 from copy import copy
@@ -19,7 +20,12 @@ from action_taken import action_taken
 from operator import attrgetter
 import re
 
-# TODO: Pandas data frame for model records
+# TODO: automate formation of epoch sub-directories for model_records,
+# TODO: add in open AI agent
+# TODO: automate model_performance, i.e. call model_performance.py within 'local_train' or
+# it's cluster equivalent
+# TODO: add more sub_directories for records for different size p
+
 
 # Note on optimality gap:
 # optimality gap = (upper bound - lower bound) / lower bound
@@ -45,8 +51,6 @@ import re
 # when we branch the node that does have the current minimum primal.
 
 
-# TODO: record stats on model and agent performance
-
 # class inherit from node, so that we can add an attribute for 'searched'
 class rl_node(Node):
 	def __init__(self, parent, zlb: list, zub: list, x, y, xi_norm):
@@ -55,9 +59,9 @@ class rl_node(Node):
 
 
 class rl_env(gym.Env):
-	def __init__(self, l0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, \
-	branch_model_name='branch_model_in60_lay2_0', branch_model_epoch=-1, \
-	search_model_name='search_model_in51_lay2_0', search_model_epoch=-1):
+	def __init__(self, l0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, epoch = -1, \
+	branch_model_name='branch_model_in60_lay2', \
+	search_model_name='search_model_in51_lay2'):
 
 		""" Note: 'greedy_epsilon' is the probability of choosing random exploration, 
 		for testing performance after training, set greedy_epsilon to zero."""
@@ -70,18 +74,17 @@ class rl_env(gym.Env):
 		self.branch_model_name = branch_model_name
 		self.search_model_name = search_model_name
 		self.greedy_epsilon = greedy_epsilon
-		self.branch_model_epoch = branch_model_epoch
-		self.search_model_epoch = search_model_epoch
+		self.epoch = epoch
 
 		# For mini data (p=5)
 		if p==5:
 		    self.x_file_list = subprocess.run( \
-		    	f"cd synthetic_data; ls x*_pmini_* -1U", \
+		    	f"cd synthetic_data/epoch_{self.epoch}; ls x*_pmini_* -1U", \
 		    	capture_output=True, text=True, shell=True).stdout.splitlines()
 		# For all other data (p in {10**3, 10**4, 10**5, 10**6})
 		else:
 		    self.x_file_list = subprocess.run( \
-		    	f"cd synthetic_data; ls x*_p{int(np.log10(self.p))}_* -1U", \
+		    	f"cd synthetic_data/epoch_{self.epoch}; ls x*_p{int(np.log10(self.p))}_* -1U", \
 		    	capture_output=True, text=True, shell=True).stdout.splitlines()
 
 		self.int_tol = 10**-4
@@ -131,17 +134,18 @@ class rl_env(gym.Env):
 
 		if x_file_name is None:
 		    # Randomly select data from the test bed, with the given number of variables, 'self.p'
-		    random_index = np.random.randint(len(self.x_file_list))
+		    random_index = np.random.randint(1, len(self.x_file_list))
 		    x_file_name = self.x_file_list.pop(random_index)
-		    print(len(self.x_file_list))
+		    # print(len(self.x_file_list))
 
 		self.x_file_name = x_file_name
 	
 		y_file_name = x_file_name.replace('x', 'y')
 		b_file_name = x_file_name.replace('x', 'b')
-		self.x = np.load(os.path.join('synthetic_data', x_file_name))
-		self.y = np.load(os.path.join('synthetic_data', y_file_name))
-		self.b = np.load(os.path.join('synthetic_data', b_file_name))
+		self.x = np.load(os.path.join(f'synthetic_data/epoch_{self.epoch}', x_file_name))
+		self.y = np.load(os.path.join(f'synthetic_data/epoch_{self.epoch}', y_file_name))
+		self.y = self.y.reshape(1000)
+		self.b = np.load(os.path.join(f'synthetic_data/epoch_{self.epoch}', b_file_name))
 		global_stats = np.array([self.l0, self.l2, self.p], dtype=float)
 		
 		### Initialize a 'BNBTree' object (as defined in 'l0bnb'), and initialize its root node
@@ -202,7 +206,7 @@ class rl_env(gym.Env):
 		option that are passed to the external agent.
 		to the rl_env """
 		# Select options to be passed to agent by taking arg max of q-hats
-		# Note that when (random_number < greedy_epsilong) only one option is passed in,
+		# Note that when (random_number < greedy_epsilon) only one option is passed in,
 		# and taking the arg max in that case is not strictly necessary.
 		branch_ind = np.argmax(branch_q_hats) 
 		self.state['branch_option_stats'] = branch_stats[branch_ind, :]
@@ -352,6 +356,10 @@ class rl_env(gym.Env):
 		prev_opt_gap = self.optimality_gap
 		self.optimality_gap = (self.curr_best_int_primal - self.lower_bound) / self.lower_bound
 		change_in_opt_gap = prev_opt_gap - self.optimality_gap
+		# Scaling for numerical reasons ... 
+		# The un-scaled initial O.G. is often on the order of 10**3, so when the model 
+		# estimates zero, the mean squared error is often on the order of 10**6.
+		change_in_opt_gap = change_in_opt_gap*1000
 		
 		### Attach stats on action taken <==> Update self.current_action
 		if branch_or_search == 'branch':
@@ -378,7 +386,6 @@ class rl_env(gym.Env):
 		    total_n_branch = action.n_branch
 		    total_n_search = action.n_search
 		    
-		    # TODO: Pandas data frame
 		    branch_action_records, search_action_records = [], []
 		    branch_model_records, search_model_records = [], []
 		    
@@ -387,11 +394,6 @@ class rl_env(gym.Env):
 		        action.specific_stats])
 		    action_record = np.append(action_record, action.change_in_opt_gap)
 		        
-		    if action.branch_or_search == 'branch':
-		        model_epoch = self.branch_model_epoch
-		    if action.branch_or_search == 'search':
-		        model_epoch = self.search_model_epoch
-		        
 		    model_record = np.array([
 		        action.step_number, action.n_branch, action.n_search, \
 		        (total_n_steps - action.step_number), \
@@ -399,14 +401,14 @@ class rl_env(gym.Env):
 		        (total_n_search - action.n_search), \
 		        action.q_hat[0], \
 		        action.change_in_opt_gap, \
-		        model_epoch])
+		        self.epoch])
 		    
 		    if action.branch_or_search == 'branch':
 		    	branch_action_records.append(action_record)
-		    	branch_model_records.append(action_record)
+		    	branch_model_records.append(model_record)
 		    else:
 		    	search_action_records.append(action_record)
-		    	search_model_records.append(action_record)
+		    	search_model_records.append(model_record)
     
 		    # Get action records of previous actions taken
 		    while action.prev_action is not None:
@@ -415,11 +417,6 @@ class rl_env(gym.Env):
 		    	action.specific_stats])
 		    	action_record = np.append(action_record, action.change_in_opt_gap)
 		            
-		    	if action.branch_or_search == 'branch':
-			    	  model_epoch = self.branch_model_epoch
-		    	if action.branch_or_search == 'search':
-			    	  model_epoch = self.search_model_epoch
-
 		    	model_record = np.array([
 		    	    action.step_number, action.n_branch, action.n_search, \
 		    	    total_n_steps - action.step_number, \
@@ -427,14 +424,14 @@ class rl_env(gym.Env):
 		    	    total_n_search - action.n_search, \
 		    	    action.q_hat[0], \
 	            action.change_in_opt_gap, \
-	            model_epoch])
+	            self.epoch])
 		      
 		    	if action.branch_or_search == 'branch':
 		    		branch_action_records.append(action_record)
-		    		branch_model_records.append(action_record)
+		    		branch_model_records.append(model_record)
 		    	else:
 		    		search_action_records.append(action_record)
-		    		search_model_records.append(action_record)
+		    		search_model_records.append(model_record)
 		    		
 		    # Save records
 		    data_info = re.sub('x_', '', self.x_file_name)
@@ -444,13 +441,13 @@ class rl_env(gym.Env):
 		    	branch_action_records = np.vstack(branch_action_records)
 		    	branch_record_dim = branch_action_records.shape[1]
 		    	file_name = f'branch_action_records_dim{branch_record_dim}_{data_info}'
-		    	np.save(os.path.join('action_records', file_name), branch_action_records)
+		    	np.save(os.path.join(f'action_records/epoch_{self.epoch}', file_name), branch_action_records)
 		    	
 		    	branch_model_records = np.vstack(branch_model_records)
 		    	branch_record_dim = branch_model_records.shape[1]
-		    	model_data_info = data_info + f'_{self.branch_model_name}_ep{self.branch_model_epoch}'
+		    	model_data_info = data_info + f'_{self.branch_model_name}_ep{self.epoch}'
 		    	file_name = f'branch_model_records_dim{branch_record_dim}_{model_data_info}'
-		    	np.save(os.path.join('model_records', file_name), branch_model_records)
+		    	np.save(os.path.join(f'model_records/epoch_{self.epoch}', file_name), branch_model_records)
 		    	
 		    if search_action_records:
 		    	search_action_records = np.vstack(search_action_records)
@@ -460,9 +457,9 @@ class rl_env(gym.Env):
 		    	
 		    	search_model_records = np.vstack(search_model_records)
 		    	search_record_dim = search_model_records.shape[1]
-		    	model_data_info = data_info + f'_{self.search_model_name}_ep{self.search_model_epoch}'
+		    	model_data_info = data_info + f'_{self.search_model_name}_ep{self.epoch}'
 		    	file_name = f'search_model_records_dim{search_record_dim}_{model_data_info}'
-		    	np.save(os.path.join('model_records', file_name), search_model_records)
+		    	np.save(os.path.join(f'model_records/epoch_{self.epoch}', file_name), search_model_records)
 		    
 		    ### Gather return values
 		    done = True
