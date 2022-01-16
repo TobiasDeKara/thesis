@@ -1,9 +1,10 @@
 import numpy as np
 import os
 import subprocess
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+# Note re: TF_CPP_MIN_LOG_LEVEL
 # 0 = all messages are logged (default behavior)
 # 1 = INFO messages are not printed
 # 2 = INFO and WARNING messages are not printed
