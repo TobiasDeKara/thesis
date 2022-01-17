@@ -142,10 +142,10 @@ class rl_env(gym.Env):
 	
 		y_file_name = x_file_name.replace('x', 'y')
 		b_file_name = x_file_name.replace('x', 'b')
-		self.x = np.load(os.path.join(f'synthetic_data/epoch_{self.epoch}', x_file_name))
-		self.y = np.load(os.path.join(f'synthetic_data/epoch_{self.epoch}', y_file_name))
+		self.x = np.load(f'synthetic_data/epoch_{self.epoch}/{x_file_name}')
+		self.y = np.load(f'synthetic_data/epoch_{self.epoch}/{y_file_name}')
 		self.y = self.y.reshape(1000)
-		self.b = np.load(os.path.join(f'synthetic_data/epoch_{self.epoch}', b_file_name))
+		self.b = np.load(f'synthetic_data/epoch_{self.epoch}/{b_file_name}')
 		global_stats = np.array([self.l0, self.l2, self.p], dtype=float)
 		
 		### Initialize a 'BNBTree' object (as defined in 'l0bnb'), and initialize its root node
@@ -441,25 +441,25 @@ class rl_env(gym.Env):
 		    	branch_action_records = np.vstack(branch_action_records)
 		    	branch_record_dim = branch_action_records.shape[1]
 		    	file_name = f'branch_action_records_dim{branch_record_dim}_{data_info}'
-		    	np.save(os.path.join(f'action_records/epoch_{self.epoch}', file_name), branch_action_records)
+		    	np.save(f'action_records/epoch_{self.epoch}/{file_name}', branch_action_records)
 		    	
 		    	branch_model_records = np.vstack(branch_model_records)
 		    	branch_record_dim = branch_model_records.shape[1]
-		    	model_data_info = data_info + f'_{self.branch_model_name}_ep{self.epoch}'
+		    	model_data_info =  f'{data_info}_{self.branch_model_name}_ep{self.epoch}'
 		    	file_name = f'branch_model_records_dim{branch_record_dim}_{model_data_info}'
-		    	np.save(os.path.join(f'model_records/epoch_{self.epoch}', file_name), branch_model_records)
+		    	np.save(f'model_records/epoch_{self.epoch}/{file_name}', branch_model_records)
 		    	
 		    if search_action_records:
 		    	search_action_records = np.vstack(search_action_records)
 		    	search_record_dim = search_action_records.shape[1]
 		    	file_name = f'search_action_records_dim{search_record_dim}_{data_info}'
-		    	np.save(os.path.join('action_records', file_name), search_action_records)
+		    	np.save(f'action_records/epoch_{self.epoch}/{file_name}', search_action_records)
 		    	
 		    	search_model_records = np.vstack(search_model_records)
 		    	search_record_dim = search_model_records.shape[1]
-		    	model_data_info = data_info + f'_{self.search_model_name}_ep{self.epoch}'
+		    	model_data_info =  f'{data_info}_{self.branch_model_name}_ep{self.epoch}'
 		    	file_name = f'search_model_records_dim{search_record_dim}_{model_data_info}'
-		    	np.save(os.path.join(f'model_records/epoch_{self.epoch}', file_name), search_model_records)
+		    	np.save(f'model_records/epoch_{self.epoch}/{file_name}', search_model_records)
 		    
 		    ### Gather return values
 		    done = True
