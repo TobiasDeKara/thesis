@@ -80,7 +80,6 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
         y_normalized = y_centered / np.linalg.norm(y_centered)
     
         # Save
-        path = f'synthetic_data/epoch_{epoch_n}' 
         # Note: this is a symbolic link to /users/tdekara/data/tdekara/synthetic_data,
         #     So this is all saved in 'data' not the home directory.
         
@@ -90,10 +89,12 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
         # Make file name
         if p == 5:
             # Changed for mini data because we don't want to take the log of p=5
-            filetag = f'_gen_syn_n{int(np.log10(n))}_pmini_supp{supp_size}_seed{seed}' 
+           path = f'synthetic_data/mini/epoch_{epoch_n}' 
+           filetag = f'_gen_syn_n{int(np.log10(n))}_pmini_supp{supp_size}_seed{seed}' 
         else:
-            filetag = f'_gen_syn_n{int(np.log10(n))}_p{int(np.log10(p))}_supp{supp_size}_seed{seed}'  
-        
+           filetag = f'_gen_syn_n{int(np.log10(n))}_p{int(np.log10(p))}_supp{supp_size}_seed{seed}'  
+           path = f'synthetic_data/p{int(np.log10(p))}/epoch_{epoch_n}' 
+       
         np.save(os.path.join(path,'b' + filetag), b)
         np.save(os.path.join(path,'x' + filetag), x_normalized)
         np.save(os.path.join(path,'y' + filetag), y_normalized)
