@@ -38,12 +38,17 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
         b: The true vector of regression coefficients.
     """
     # Create n_th Epoch sub-directory
-    n_prev_epoch = subprocess.run('cd synthetic_data; ls -d1U */ | wc -l', capture_output=True, \
-    text=True, shell=True).stdout
+    if p == 5:
+        n_prev_epoch = subprocess.run('cd synthetic_data/mini; ls -d1U */ | wc -l', capture_output=True, \
+        text=True, shell=True).stdout
+        epoch_n = int(n_prev_epoch) + 1
+        subprocess.run(f'cd synthetic_data/mini; mkdir epoch_{epoch_n}', shell=True)
 
-    epoch_n = int(n_prev_epoch) + 1
-    
-    subprocess.run(f'cd synthetic_data; mkdir epoch_{epoch_n}', shell=True)
+    else: 
+        n_prev_epoch = subprocess.run(f'cd synthetic_data/p{int(np.log10(self.p))}; ls -d1U */ | wc -l', capture_output=True, \
+        text=True, shell=True).stdout
+        epoch_n = int(n_prev_epoch) + 1
+        subprocess.run(f'cd synthetic_data/p{int(np.log10(self.p))}; mkdir epoch_{epoch_n}', shell=True)
         
     for _ in range(n_mat):
         seed = int(10**8 * np.random.random_sample())
@@ -95,6 +100,7 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
         del x, y, b
 
 make_syn_data(n_mat=1000, p=5, supp_size=1)
+
 # For Testing
 # import subprocess
 # x_file_list = subprocess.run( \
