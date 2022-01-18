@@ -10,17 +10,17 @@
 library(L0Learn)
 library(readr)
 
-x_sub <- read_csv('./param_for_search/x_sub_mat.csv', col_names=TRUE)
+x_sub <- read_csv('./param_for_search/x_sub_mat.csv', col_names=TRUE, show_col_types = FALSE)
 col_names <- as.integer(names(x_sub)) # these are the indexes of the variables relative to p
 # Note that later 'coefs(fit, lambda, gamma)' will give us indexes of the support relative to x_sub
 
 x_sub <- as.matrix(x_sub) # L0Learn.fit needs a matrix
 
-y <- as.matrix(read_csv('./param_for_search/y.csv', col_names=FALSE, col_types='d'))
-lambdas <- read_csv('./param_for_search/lambdas.csv', col_names=FALSE, col_types='d')
+y <- as.matrix(read_csv('./param_for_search/y.csv', col_names=FALSE, col_types='d', show_col_types = FALSE))
+lambdas <- read_csv('./param_for_search/lambdas.csv', col_names=FALSE, show_col_types = FALSE, col_types='d')
 lambda <- lambdas[[1,1]]
 gamma <- lambdas[[2,1]]
-len_zub <- read_csv('./param_for_search/len_zub.csv', col_names=FALSE, col_types='i')
+len_zub <- read_csv('./param_for_search/len_zub.csv', col_names=FALSE, col_types='i', show_col_types = FALSE)
 len_zub <- len_zub[[1,1]]
 
 fit <- L0Learn.fit(x_sub, y, algorithm="CDPSI", penalty='L0L2', intercept=FALSE,
