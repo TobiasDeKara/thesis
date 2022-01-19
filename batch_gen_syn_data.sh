@@ -17,27 +17,28 @@
 # --- Start of slurm commands -----------
 
 # Request an hour of runtime:
-#SBATCH --time=10:00
+#SBATCH --time=1:00
 
 # Default resources are 1 core with 2.8GB of memory.
 # Use more memory:
 ##SBATCH -n 8
-#SBATCH --mem=4G
+#SBATCH --mem=1G
 
 # Specify a job name:
-#SBATCH -J p3_core1
+#SBATCH -J mini
+
+#SBATCH --array=1-100
 
 # Specify an output file
-# %j is a special variable that is replaced by the JobID when 
-# job starts
-##SBATCH -o MySerialJob-%j.out
-##SBATCH -e MySerialJob-%j.out
+# Use '%A' for array-job ID, '%J' for job ID and '%a' for task ID
+#SBATCH -o MySerialJob-%a.out
+#SBATCH -e MySerialJob-%a.out
 
 #----- End of slurm commands ----
 
 # Run commands
 source ~/L0_env_p3.9.0/bin/activate
 
-python -u ~/thesis/gen_syn_data.py 
+python -u ~/thesis/gen_syn_data.py $SLURM_ARRAY_TASK_ID
 # 'u' for unbuffered, meaning print statements are returned immediately
 

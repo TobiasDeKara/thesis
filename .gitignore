@@ -1,4 +1,9 @@
 *~
+action_records
+model_records
+batch_run_rl.sh
+models/
+sb_models/
 synthetic_data
 synthetic_data/
 *.out
