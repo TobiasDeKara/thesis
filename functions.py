@@ -31,7 +31,7 @@ def get_q_hats(model_name, action_stats,  static_stats):
 	return(q_hats)
 
 
-def get_search_solution(node, p, l0, l2, y):
+def get_search_solution(node, p, l0, l2, y, epoch_n):
 	# node.x_sub_mat will be the submatrix of the original matrix x, that excludes
 	# the variables that have been branched down in the given node.  
 	# node.x_sub_mat will also be rearranged so that the variables that have been 
@@ -46,21 +46,23 @@ def get_search_solution(node, p, l0, l2, y):
 	x_indexes = np.array((node.zlb + node_active_x_i), ndmin=2)
 	x_sub_mat_indexed = np.vstack((x_indexes, x_sub_mat))
 
-	np.savetxt(fname=os.path.join('./param_for_search', 'x_sub_mat.csv'), \
-		X=x_sub_mat_indexed, fmt='%.18f', delimiter=',') 
-	np.savetxt(fname=os.path.join('./param_for_search', 'lambdas.csv'), \
-		X=np.array([l0, l2]), fmt='%.18f', delimiter=',') 
-	np.savetxt(fname=os.path.join('./param_for_search', 'len_zub.csv'), \
-		X=np.array([len(node.zub)]), fmt='%i', delimiter=',') 
-	np.savetxt(fname=os.path.join('./param_for_search', 'y.csv'), \
-		X=y, fmt='%.18f', delimiter=',')
+	path = f'./param_for_search/epoch_{epoch_n}'
+	fname=f'{path}/x_sub_mat.csv'
+	np.savetxt(fname=fname, X=x_sub_mat_indexed, fmt='%.18f', delimiter=',') 
+	fname=f'{path}/lambdas.csv'
+	np.savetxt(fname=fname,	X=np.array([l0, l2]), fmt='%.18f', delimiter=',') 
+	fname=f'{path}/len_zub.csv'
+	np.savetxt(fname=fname,	X=np.array([len(node.zub)]), fmt='%i', delimiter=',') 
+	fname=f'{path}/y.csv'
+	np.savetxt(fname=fname,	X=y, fmt='%.18f', delimiter=',')
  
-	subprocess.run('Rscript search_script.R', shell=True)
+	subprocess.run(f'Rscript search_script.R {epoch_n}', shell=True)
 
-	search_support = np.loadtxt(os.path.join('./results_of_search', 'support.csv'), \
-		delimiter=',', dtype='int', ndmin=1)
-	search_betas = np.loadtxt(os.path.join('./results_of_search', 'betas.csv'), delimiter=',', \
-		ndmin=1)
+	path = f'./results_of_search/epoch_{epoch_n}'
+	fname=f'{path}/support.csv'
+	search_support = np.loadtxt(fname, delimiter=',', dtype='int', ndmin=1)
+	fname=f'{path}/betas.csv'
+	search_betas = np.loadtxt(fname, delimiter=',', ndmin=1)
 
 	return(search_support, search_betas)
 
