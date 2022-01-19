@@ -10,12 +10,14 @@
 # supp_size in {5,10}, rho in {0.5, 0.8, 0.9}?
 # Hazimeh et al, us n = 10^3, p = {10^3, 10^4, 10^5, 10^6}, snr = 5
 
+import sys
 import numpy as np
 from numpy.random import multivariate_normal, normal
 import os
 import subprocess
     
-def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
+def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
+	 epoch_n = int(sys.argv[1])):
     """Generate a synthetic regression dataset: y, x, and b.
     The data matrix x is sampled from a multivariate gaussian with exponential 
     correlation between columns.
@@ -39,16 +41,9 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5):
     """
     # Create n_th Epoch sub-directory
     if p == 5:
-        n_prev_epoch = subprocess.run('cd synthetic_data/mini; ls -d1U */ | wc -l', capture_output=True, \
-        text=True, shell=True).stdout
-        epoch_n = int(n_prev_epoch) + 1
-        subprocess.run(f'cd synthetic_data/mini; mkdir epoch_{epoch_n}', shell=True)
-
+        subprocess.run(f'mkdir ~/thesis/synthetic_data/mini/epoch_{epoch_n}', shell=True)
     else: 
-        n_prev_epoch = subprocess.run(f'cd synthetic_data/p{int(np.log10(self.p))}; ls -d1U */ | wc -l', capture_output=True, \
-        text=True, shell=True).stdout
-        epoch_n = int(n_prev_epoch) + 1
-        subprocess.run(f'cd synthetic_data/p{int(np.log10(self.p))}; mkdir epoch_{epoch_n}', shell=True)
+        subprocess.run(f'mkdir ~/thesis/synthetic_data/p{int(np.log10(self.p))}/epoch_{epoch_n}', shell=True)
         
     for _ in range(n_mat):
         seed = int(10**8 * np.random.random_sample())

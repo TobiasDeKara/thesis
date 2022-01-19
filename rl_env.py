@@ -20,12 +20,7 @@ from action_taken import action_taken
 from operator import attrgetter
 import re
 
-# TODO: automate formation of epoch sub-directories for model_records,
-# TODO: add in open AI agent
-# TODO: automate model_performance, i.e. call model_performance.py within 'local_train' or
-# it's cluster equivalent
 # TODO: add more sub_directories for records for different size p
-
 
 # Note on optimality gap:
 # optimality gap = (upper bound - lower bound) / lower bound
@@ -77,14 +72,15 @@ class rl_env(gym.Env):
 		self.epoch = epoch
 
 		# For mini data (p=5)
-		if p==5:
-		    self.x_file_list = subprocess.run( \
-		    	f"cd synthetic_data/epoch_{self.epoch}; ls x*_pmini_* -1U", \
-		    	capture_output=True, text=True, shell=True).stdout.splitlines()
+		if self.p==5:
+                    self.p_sub_dir = 'mini'
+                
 		# For all other data (p in {10**3, 10**4, 10**5, 10**6})
 		else:
-		    self.x_file_list = subprocess.run( \
-		    	f"cd synthetic_data/epoch_{self.epoch}; ls x*_p{int(np.log10(self.p))}_* -1U", \
+                    self.p_sub_dir = f'p{int(np.log10(self.p))}'
+
+		self.x_file_list = subprocess.run( \
+		    	f"cd synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}; ls x*_pmini_* -1U", \
 		    	capture_output=True, text=True, shell=True).stdout.splitlines()
 
 		self.int_tol = 10**-4
@@ -133,19 +129,15 @@ class rl_env(gym.Env):
 		# search_option_stats, search_option_key, search_q_hat
 
 		if x_file_name is None:
-		    # Randomly select data from the test bed, with the given number of variables, 'self.p'
-		    random_index = np.random.randint(1, len(self.x_file_list))
-		    x_file_name = self.x_file_list.pop(random_index)
-		    # print(len(self.x_file_list))
-
+                    x_file_name = self.x_file_list.pop(0)
 		self.x_file_name = x_file_name
 	
 		y_file_name = x_file_name.replace('x', 'y')
 		b_file_name = x_file_name.replace('x', 'b')
-		self.x = np.load(f'synthetic_data/epoch_{self.epoch}/{x_file_name}')
-		self.y = np.load(f'synthetic_data/epoch_{self.epoch}/{y_file_name}')
+		self.x = np.load(f'synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}/{x_file_name}')
+		self.y = np.load(f'synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}/{y_file_name}')
 		self.y = self.y.reshape(1000)
-		self.b = np.load(f'synthetic_data/epoch_{self.epoch}/{b_file_name}')
+		self.b = np.load(f'synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}/{b_file_name}')
 		global_stats = np.array([self.l0, self.l2, self.p], dtype=float)
 		
 		### Initialize a 'BNBTree' object (as defined in 'l0bnb'), and initialize its root node
@@ -247,7 +239,8 @@ class rl_env(gym.Env):
 		    search_node = self.active_nodes[search_node_key]
 		    search_node.searched = 1
 		    search_support, search_betas = \
-		    	get_search_solution(node=search_node, p=self.p, l0=self.l0, l2=self.l2, y=self.y)
+		    	get_search_solution(node=search_node, p=self.p, l0=self.l0, \
+			l2=self.l2, y=self.y, epoch_n=self.epoch)
 
 		    # Find primal value of search solution	
 		    if search_support.shape[0] == 1:
@@ -401,7 +394,7 @@ class rl_env(gym.Env):
 		        (total_n_search - action.n_search), \
 		        action.q_hat[0], \
 		        action.change_in_opt_gap, \
-		        self.epoch])
+		        self.epoch], dtype = float)
 		    
 		    if action.branch_or_search == 'branch':
 		    	branch_action_records.append(action_record)
@@ -423,8 +416,8 @@ class rl_env(gym.Env):
 		    	    total_n_branch - action.n_branch, \
 		    	    total_n_search - action.n_search, \
 		    	    action.q_hat[0], \
-	            action.change_in_opt_gap, \
-	            self.epoch])
+		            action.change_in_opt_gap, \
+		            self.epoch], dtype = float)
 		      
 		    	if action.branch_or_search == 'branch':
 		    		branch_action_records.append(action_record)
@@ -457,7 +450,7 @@ class rl_env(gym.Env):
 		    	
 		    	search_model_records = np.vstack(search_model_records)
 		    	search_record_dim = search_model_records.shape[1]
-		    	model_data_info =  f'{data_info}_{self.branch_model_name}_ep{self.epoch}'
+		    	model_data_info =  f'{data_info}_{self.search_model_name}_ep{self.epoch}'
 		    	file_name = f'search_model_records_dim{search_record_dim}_{model_data_info}'
 		    	np.save(f'model_records/epoch_{self.epoch}/{file_name}', search_model_records)
 		    
