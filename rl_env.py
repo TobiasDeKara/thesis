@@ -350,9 +350,9 @@ class rl_env(gym.Env):
 		self.optimality_gap = (self.curr_best_int_primal - self.lower_bound) / self.lower_bound
 		change_in_opt_gap = prev_opt_gap - self.optimality_gap
 		# Scaling for numerical reasons ... 
-		# The un-scaled initial O.G. is often on the order of 10**3, so when the model 
+		# The un-scaled initial O.G. is often on the order of 10**-3, so when the model 
 		# estimates zero, the mean squared error is often on the order of 10**6.
-		change_in_opt_gap = change_in_opt_gap*1000
+		change_in_opt_gap = change_in_opt_gap*10000
 		
 		### Attach stats on action taken <==> Update self.current_action
 		if branch_or_search == 'branch':
