@@ -19,6 +19,7 @@ import math
 from action_taken import action_taken
 from operator import attrgetter
 import re
+import pickle
 
 # TODO: add more sub_directories for records for different size p
 
@@ -57,9 +58,21 @@ class rl_env(gym.Env):
 	def __init__(self, l0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, epoch = -1, \
 	branch_model_name='branch_model_in60_lay2', \
 	search_model_name='search_model_in51_lay2'):
-
+		super(rl_env, self).__init__()
 		""" Note: 'greedy_epsilon' is the probability of choosing random exploration, 
 		for testing performance after training, set greedy_epsilon to zero."""
+
+		# Create n_th epoch sub-directories
+		subprocess.run(f'mkdir action_records/epoch_{epoch}', shell=True)
+		subprocess.run(f'mkdir model_records/epoch_{epoch}', shell=True)
+		subprocess.run(f'mkdir param_for_search/epoch_{epoch}', shell=True)
+		subprocess.run(f'mkdir results_of_search/epoch_{epoch}', shell=True)
+		subprocess.run(f'mkdir model_copies/epoch_{epoch}', shell=True)
+		subprocess.run(f'mkdir ep_res_records/epoch_{epoch}', shell=True)
+		# subprocess.run(f'mkdir sb_copies/epoch_{epoch}', shell=True) # Maybe don't need this?
+	
+		# Make copies of q-models [and stable baselines agent?]
+		subprocess.run(f'cp -r models/* model_copies/epoch_{epoch_n}/', shell=True)
 
 		self.action_space = gym.spaces.Discrete(2)
 		self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(65,))
@@ -73,15 +86,15 @@ class rl_env(gym.Env):
 
 		# For mini data (p=5)
 		if self.p==5:
-                    self.p_sub_dir = 'mini'
-                
+			self.p_sub_dir = 'mini'
+               
 		# For all other data (p in {10**3, 10**4, 10**5, 10**6})
 		else:
-                    self.p_sub_dir = f'p{int(np.log10(self.p))}'
+               	    self.p_sub_dir = f'p{int(np.log10(self.p))}'
 
 		self.x_file_list = subprocess.run( \
-		    	f"cd synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}; ls x*_pmini_* -1U", \
-		    	capture_output=True, text=True, shell=True).stdout.splitlines()
+	    	f"cd synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}; ls x*_pmini_* -1U", \
+	    	capture_output=True, text=True, shell=True).stdout.splitlines()
 
 		self.int_tol = 10**-4
 		# m=5 works well for our synthetic data, but will need to adjusted for other data sets.
@@ -102,7 +115,9 @@ class rl_env(gym.Env):
 		self.curr_best_int_beta = None
 		self.curr_best_int_support = None
 		self.current_action = None
-		self.state = None    # This is the representation of the state passed to agent (see comment below).
+		self.state = None    
+		# Note: self.state is the representation of the state passed to agent (see comment below).
+		self.lower_bound = None    # The minimum primal value over all active nodes.    This is the best
 		self.lower_bound = None    # The minimum primal value over all active nodes.    This is the best
 		# case scenario, i.e. how good any integer solution yet to be found could be.
 		self.lower_bound_node_key = None # The key of the node with the lowest primal value
@@ -129,7 +144,12 @@ class rl_env(gym.Env):
 		# search_option_stats, search_option_key, search_q_hat
 
 		if x_file_name is None:
+                    if len(self.x_file_list) == 0:
+                        self.x_file_list = subprocess.run( \
+                        f"cd synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}; ls x*_pmini_* -1U", \
+                        capture_output=True, text=True, shell=True).stdout.splitlines()
                     x_file_name = self.x_file_list.pop(0)
+
 		self.x_file_name = x_file_name
 	
 		y_file_name = x_file_name.replace('x', 'y')
@@ -171,8 +191,8 @@ class rl_env(gym.Env):
 		    	get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
 		
 		# Get q_hats by applying models
-		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'])
-		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'])
+		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'], self.epoch)
+		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'], self.epoch)
 
 		# Record stats, keys and q_hats for the branch and search actions passed to the agent
 		self.attach_action_option_stats(branch_stats, branch_keys, search_stats, search_keys, \
@@ -188,10 +208,16 @@ class rl_env(gym.Env):
 
 
 	def get_info(self):
-		return(f'node count: {self.node_counter} \nbranch_count: {self.branch_counter} \
-            \nsearch count: {self.search_counter} \nstep count: {self.step_counter} \
-            \nx_file_name: {self.x_file_name}')
-	
+		info = {'node_count':self.node_counter,
+			'branch_count': self.branch_counter,
+			'search_count': self.search_counter,
+			'step_count': self.step_counter,
+			'x_file_name': self.x_file_name,
+			'primal_value': self.curr_best_int_primal,
+			'beta': self.curr_best_int_beta,
+			'support': self.curr_best_int_support}
+		return(info)
+
 	def attach_action_option_stats(self, branch_stats, branch_keys, search_stats, search_keys, \
 	branch_q_hats, search_q_hats):
 		""" Attaches the stats, keys, and q_hats of the branch option and the search 
@@ -454,12 +480,15 @@ class rl_env(gym.Env):
 		    	file_name = f'search_model_records_dim{search_record_dim}_{model_data_info}'
 		    	np.save(f'model_records/epoch_{self.epoch}/{file_name}', search_model_records)
 		    
+		    info = self.get_info()
+		    file_name = f'ep_res_records/epoch_{self.epoch}/{data_info}.pkl'
+		    with open(file_name, 'wb') as f:
+		        pickle.dump(info, f)
+
 		    ### Gather return values
 		    done = True
-		    observation = f'primal value: {self.curr_best_int_primal} \nbeta: {self.curr_best_int_beta} \
-		        	\nsupport: {self.curr_best_int_support}'
+		    observation = np.zeros((65))
 		    reward = change_in_opt_gap
-		    info = self.get_info()
 	
 		    return(observation, reward, done, info)
 		### End of "If we're done" #########
@@ -500,8 +529,8 @@ class rl_env(gym.Env):
 
 		# Get q_hats applying models 
 		# (to possilby 1 action option, all action options, or a capped # of action options)
-		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'])
-		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'])
+		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'], self.epoch)
+		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'], self.epoch)
 
 		# Attach stats, keys and q_hats for the branch and search actions passed to the agent
 		self.attach_action_option_stats(branch_stats, branch_keys, search_stats, search_keys, \
@@ -517,6 +546,8 @@ class rl_env(gym.Env):
 		info = self.get_info()
 		return(observation, reward, done, info)
 
+	def close(self):
+    		pass
 
 
 
