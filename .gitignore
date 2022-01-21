@@ -1,4 +1,8 @@
 *~
+ep_res_records
+model_copies
+sb_copies
+sbatch_errors
 action_records
 model_records
 batch_run_rl.sh
