@@ -1,10 +1,12 @@
 import numpy as np
+import pandas as pd
 import subprocess
 import os
 import tensorflow as tf
 # Note: model_record format is at bottom for reference
 
 # Mean squared error
+# TODO: change name to get_batch_stats()
 def get_mse(epoch_n):
   for i in range(2):
     if i == 0:
@@ -20,24 +22,55 @@ def get_mse(epoch_n):
 
     sum_sq = 0
     n_obs = 0
+    sum_obs = 0
+    sum_pred = 0
+    n_non_zero_obs = 0
+    n_non_zero_pred = 0
+
     for model_rec_file_name in model_rec_file_list:
       model_rec = np.load(os.path.join(f'model_records/epoch_{epoch_n}', model_rec_file_name))
       q_hat = model_rec[:, model_rec.shape[1]-3]
       change_in_opt_gap = model_rec[:, model_rec.shape[1]-2]
       sum_sq += sum((q_hat - change_in_opt_gap)**2)
       n_obs += model_rec.shape[0]
-    
+      sum_obs += change_in_opt_gap.sum()
+      sum_pred += q_hat.sum()
+      n_non_zero_obs += (change_in_opt_gap != 0).sum()
+      n_non_zero_pred += (q_hat != 0).sum()
+   
     if i == 0:
       search_mse = sum_sq / n_obs
       n_searches = n_obs
+      mean_search_obs = sum_obs / n_obs
+      mean_search_pred = sum_pred / n_obs
+      mean_non_zero_search_obs = sum_obs / n_non_zero_obs # Note sum of non-zero elements == sum of all elements
+      mean_non_zero_search_pred = sum_pred / n_non_zero_pred
+      n_non_zero_search_obs = n_non_zero_obs
+      n_non_zero_search_pred = n_non_zero_pred
     else:
       branch_mse = sum_sq / n_obs
       n_branches = n_obs
-      
-    n_non_zero_obs = change_in_opt_gap
+      mean_branch_obs = sum_obs / n_obs
+      mean_branch_pred = sum_pred / n_obs
+      mean_non_zero_branch_obs = sum_obs / n_non_zero_obs # Note sum of non-zero elements == sum of all elements
+      mean_non_zero_branch_pred = sum_pred / n_non_zero_pred
+      n_non_zero_branch_obs = n_non_zero_obs
+      n_non_zero_branch_pred = n_non_zero_pred
 
-  return(f'branch_mse: {branch_mse}, search_mse: {search_mse}, \
-  n_branches: {n_branches}, n_searches: {n_searches}')
+  # Gather return values
+  out = pd.DataFrame([[n_branches, n_searches], 
+  [mean_branch_obs, mean_search_obs],
+  [mean_branch_pred, mean_search_pred], 
+  [branch_mse, search_mse],
+  [mean_non_zero_branch_obs, mean_non_zero_search_obs], 
+  [mean_non_zero_branch_pred, mean_non_zero_search_pred],
+  [n_non_zero_branch_obs, n_non_zero_search_obs],
+  [n_non_zero_branch_pred, n_non_zero_search_pred]],
+  index = ['n_obs', 'mean_obs', 'mean_pred', 'mse', 'mean_non_zero_obs', \
+  'mean_non_zero_pred', 'n_non_zero_obs', 'n_non_zero_pred'], 
+  columns=['branch', 'search'])
+
+  return(out)
 
 def get_validation_mse(epoch_n=1):
     for i in range(2): 
