@@ -60,7 +60,7 @@ if __name__ ==  "__main__":
 	[make_env(batch_n=(first_batch_n + floor(i/3)), p=5, L0=L0_list[i%3]) for i in range(24)], \
 	start_method='spawn')
 	vec_env = VecMonitor(vec_env, filename="./monitor_logs")
-	model = A2C('MlpPolicy', vec_env, verbose=1, tensorboard_log="./tb_logs/mini")
+	model = A2C('MlpPolicy', vec_env, verbose=1, tensorboard_log="./tb_logs/sb")
 	model = model.save("sb_models/a2c_mini")
 
 	# Load stable baselines rl agent
