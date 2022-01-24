@@ -529,7 +529,6 @@ class rl_env(gym.Env):
 		self.batch_n, self.L0)
 		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'], \
 		self.batch_n, self.L0)
-
 		# Attach stats, keys and q_hats for the branch and search actions passed to the agent
 		self.attach_action_option_stats(branch_stats, branch_keys, search_stats, search_keys, \
 		    branch_q_hats, search_q_hats)

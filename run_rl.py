@@ -65,7 +65,7 @@ if __name__ ==  "__main__":
 
 	# Load stable baselines rl agent
 	model = A2C.load("sb_models/a2c_mini", vec_env)
-	model.learn(total_timesteps=10000, log_interval=100, tb_log_name="run_1")
+	model.learn(total_timesteps=1000, log_interval=100, tb_log_name="run_1")
 	model.save("sb_models/a2c_mini")
 
 	# Update q-model parameters and sb agent

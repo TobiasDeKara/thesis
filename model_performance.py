@@ -35,8 +35,8 @@ def get_mse(batch_n):
       n_obs += model_rec.shape[0]
       sum_obs += change_in_opt_gap.sum()
       sum_pred += q_hat.sum()
-      n_non_zero_obs += (change_in_opt_gap != 0).sum()
-      n_non_zero_pred += (q_hat != 0).sum()
+      n_non_zero_obs += (change_in_opt_gap > 0.0001).sum()
+      n_non_zero_pred += (q_hat > 0.0001).sum()
    
     if i == 0:
       search_mse = sum_sq / n_obs
@@ -88,10 +88,10 @@ def get_validation_mse(batch_n=1):
                 n_col = branch_record.shape[1]
                 x, y = np.hsplit(branch_record, np.array([n_col-1]))
                 batch_mse = branch_model.evaluate(x, y, verbose=0)
-                batch_n =  branch_record.shape[0]
+                batch_size =  branch_record.shape[0]
                 sum_sq += batch_mse*batch_n
-                n_branches += batch_n
-                branch_mse = sum_sq / n_branches
+                n_branches += batch_size
+            branch_mse = sum_sq / n_branches
         else:
             # Repeat for search
             search_model_name='search_model_in51_lay2'
@@ -109,7 +109,7 @@ def get_validation_mse(batch_n=1):
                 batch_n = search_record.shape[0]
                 sum_sq += batch_mse*batch_n
                 n_searches += batch_n
-                search_mse = sum_sq / n_searches
+            search_mse = sum_sq / n_searches
     return(f'branch_mse: {branch_mse}, search_mse: {search_mse}, \
     n_branches: {n_branches}, n_searches: {n_searches}')
 

@@ -18,7 +18,6 @@ def reverse_lookup(d, val):
 def get_q_hats(model_name, action_stats,  static_stats, batch_n, L0):
 	model_path = f'./model_copies/batch_{batch_n}/L0_{-int(np.log10(L0))}/{model_name}'
 	model = tf.keras.models.load_model(model_path)
-
 	# When getting q hats for all branhcing or all searching options, action_stats is a 2 dim
 	# array where each row represents an available action.
 	# When getting a single q hat (because of epsilon greedy policy), action_stats is a 1 dim array.
