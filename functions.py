@@ -15,8 +15,8 @@ def reverse_lookup(d, val):
     if d[key] == val:
       return key
 
-def get_q_hats(model_name, action_stats,  static_stats, epoch_n):
-	model_path = f'./model_copies/epoch_{epoch_n}/{model_name}'
+def get_q_hats(model_name, action_stats,  static_stats, batch_n, L0):
+	model_path = f'./model_copies/batch_{batch_n}/L0_{-int(np.log10(L0))}/{model_name}'
 	model = tf.keras.models.load_model(model_path)
 
 	# When getting q hats for all branhcing or all searching options, action_stats is a 2 dim
@@ -32,7 +32,7 @@ def get_q_hats(model_name, action_stats,  static_stats, epoch_n):
 	return(q_hats)
 
 
-def get_search_solution(node, p, l0, l2, y, epoch_n):
+def get_search_solution(node, p, L0, l2, y, batch_n):
 	# node.x_sub_mat will be the submatrix of the original matrix x, that excludes
 	# the variables that have been branched down in the given node.  
 	# node.x_sub_mat will also be rearranged so that the variables that have been 
@@ -47,19 +47,20 @@ def get_search_solution(node, p, l0, l2, y, epoch_n):
 	x_indexes = np.array((node.zlb + node_active_x_i), ndmin=2)
 	x_sub_mat_indexed = np.vstack((x_indexes, x_sub_mat))
 
-	path = f'./param_for_search/epoch_{epoch_n}'
+	log_L0 = -int(np.log10(L0))
+	path = f'./param_for_search/batch_{batch_n}/L0_{log_L0}'
 	fname=f'{path}/x_sub_mat.csv'
 	np.savetxt(fname=fname, X=x_sub_mat_indexed, fmt='%.18f', delimiter=',') 
 	fname=f'{path}/lambdas.csv'
-	np.savetxt(fname=fname,	X=np.array([l0, l2]), fmt='%.18f', delimiter=',') 
+	np.savetxt(fname=fname,	X=np.array([L0, l2]), fmt='%.18f', delimiter=',') 
 	fname=f'{path}/len_zub.csv'
 	np.savetxt(fname=fname,	X=np.array([len(node.zub)]), fmt='%i', delimiter=',') 
 	fname=f'{path}/y.csv'
 	np.savetxt(fname=fname,	X=y, fmt='%.18f', delimiter=',')
  
-	subprocess.run(f'Rscript search_script.R {epoch_n}', shell=True)
+	subprocess.run(f'Rscript search_script.R {batch_n} {log_L0}', shell=True)
 
-	path = f'./results_of_search/epoch_{epoch_n}'
+	path = f'./results_of_search/batch_{batch_n}/L0_{log_L0}'
 	fname=f'{path}/support.csv'
 	search_support = np.loadtxt(fname, delimiter=',', dtype='int', ndmin=1)
 	fname=f'{path}/betas.csv'

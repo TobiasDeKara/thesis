@@ -17,7 +17,7 @@ import os
 import subprocess
     
 def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
-	 epoch_n = int(sys.argv[1])):
+	 batch_n = int(sys.argv[1])):
     """Generate a synthetic regression dataset: y, x, and b.
     The data matrix x is sampled from a multivariate gaussian with exponential 
     correlation between columns.
@@ -41,9 +41,9 @@ def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
     """
     # Create n_th Epoch sub-directory
     if p == 5:
-        subprocess.run(f'mkdir ~/thesis/synthetic_data/mini/epoch_{epoch_n}', shell=True)
+        subprocess.run(f'mkdir ~/thesis/synthetic_data/mini/batch_{batch_n}', shell=True)
     else: 
-        subprocess.run(f'mkdir ~/thesis/synthetic_data/p{int(np.log10(self.p))}/epoch_{epoch_n}', shell=True)
+        subprocess.run(f'mkdir ~/thesis/synthetic_data/p{int(np.log10(p))}/batch_{batch_n}', shell=True)
         
     for _ in range(n_mat):
         seed = int(10**8 * np.random.random_sample())
@@ -84,11 +84,11 @@ def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
         # Make file name
         if p == 5:
             # Changed for mini data because we don't want to take the log of p=5
-           path = f'synthetic_data/mini/epoch_{epoch_n}' 
+           path = f'synthetic_data/mini/batch_{batch_n}' 
            filetag = f'_gen_syn_n{int(np.log10(n))}_pmini_supp{supp_size}_seed{seed}' 
         else:
            filetag = f'_gen_syn_n{int(np.log10(n))}_p{int(np.log10(p))}_supp{supp_size}_seed{seed}'  
-           path = f'synthetic_data/p{int(np.log10(p))}/epoch_{epoch_n}' 
+           path = f'synthetic_data/p{int(np.log10(p))}/batch_{batch_n}' 
        
         np.save(os.path.join(path,'b' + filetag), b)
         np.save(os.path.join(path,'x' + filetag), x_normalized)

@@ -7,17 +7,17 @@ import tensorflow as tf
 
 # Mean squared error
 # TODO: change name to get_batch_stats()
-def get_mse(epoch_n):
+def get_mse(batch_n):
   for i in range(2):
     if i == 0:
       # search records
       model_rec_file_list = subprocess.run( \
-      f"cd model_records/epoch_{epoch_n}; ls search_model_records* -1U", \
+      f"cd model_records/batch_{batch_n}; ls search_model_rec* -1U", \
       capture_output=True, text=True, shell=True).stdout.splitlines()
     else:
       # branch records
       model_rec_file_list = subprocess.run( \
-      f"cd model_records/epoch_{epoch_n}; ls branch_model_records* -1U", \
+      f"cd model_records/batch_{batch_n}; ls branch_model_rec* -1U", \
       capture_output=True, text=True, shell=True).stdout.splitlines()
 
     sum_sq = 0
@@ -28,7 +28,7 @@ def get_mse(epoch_n):
     n_non_zero_pred = 0
 
     for model_rec_file_name in model_rec_file_list:
-      model_rec = np.load(os.path.join(f'model_records/epoch_{epoch_n}', model_rec_file_name))
+      model_rec = np.load(os.path.join(f'model_records/batch_{batch_n}', model_rec_file_name))
       q_hat = model_rec[:, model_rec.shape[1]-3]
       change_in_opt_gap = model_rec[:, model_rec.shape[1]-2]
       sum_sq += sum((q_hat - change_in_opt_gap)**2)
@@ -72,19 +72,19 @@ def get_mse(epoch_n):
 
   return(out)
 
-def get_validation_mse(epoch_n=1):
+def get_validation_mse(batch_n=1):
     for i in range(2): 
         sum_sq = 0
         if i == 0:
             # branch
             branch_model_name = 'branch_model_in60_lay2'
             branch_model = tf.keras.models.load_model(f'./models/{branch_model_name}')
-            branch_record_list = subprocess.run(f'cd action_records/epoch_{epoch_n}; ls branch* -1U', \
+            branch_record_list = subprocess.run(f'cd action_records/batch_{batch_n}; ls branch* -1U', \
             capture_output=True, text=True, shell=True).stdout.splitlines()
 
             n_branches = 0
             for branch_file_name in branch_record_list:
-                branch_record = np.load(f'./action_records/epoch_{epoch_n}/{branch_file_name}')
+                branch_record = np.load(f'./action_records/batch_{batch_n}/{branch_file_name}')
                 n_col = branch_record.shape[1]
                 x, y = np.hsplit(branch_record, np.array([n_col-1]))
                 batch_mse = branch_model.evaluate(x, y, verbose=0)
@@ -97,12 +97,12 @@ def get_validation_mse(epoch_n=1):
             search_model_name='search_model_in51_lay2'
             search_model = tf.keras.models.load_model(f'./models/{search_model_name}')
             search_model_name = ''
-            search_record_list = subprocess.run(f'cd action_records/epoch_{epoch_n}; ls search* -1U', \
+            search_record_list = subprocess.run(f'cd action_records/batch_{batch_n}; ls search* -1U', \
             capture_output=True, text=True, shell=True).stdout.splitlines()
 
             n_searches = 0
             for search_file_name in search_record_list:
-                search_record = np.load(f'./action_records/epoch_{epoch_n}/{search_file_name}')
+                search_record = np.load(f'./action_records/batch_{batch_n}/{search_file_name}')
                 n_col = search_record.shape[1]
                 x, y = np.hsplit(search_record, np.array([n_col-1]))
                 batch_mse = search_model.evaluate(x, y, verbose=0)
@@ -113,13 +113,6 @@ def get_validation_mse(epoch_n=1):
     return(f'branch_mse: {branch_mse}, search_mse: {search_mse}, \
     n_branches: {n_branches}, n_searches: {n_searches}')
 
-    # model_rec_file_list = subprocess.run( \
-    # f"cd model_records/epoch_{epoch_n}; ls search_model_records* -1U", \
-    # capture_output=True, text=True, shell=True).stdout.splitlines()
-    
-    # model_rec_file_name = model_rec_file_list[0]
-    #  model_rec = np.load(os.path.join(f'model_records/epoch_{epoch_n}', model_rec_file_name))
-
 # For reference
 # model_record = np.array([
 #     action.step_number, action.n_branch, action.n_search, \
@@ -128,5 +121,5 @@ def get_validation_mse(epoch_n=1):
 #     (total_n_search - action.n_search), \
 #     action.q_hat[0], \
 #     action.change_in_opt_gap, \
-#     model_epoch])
+#     model_batch])
 

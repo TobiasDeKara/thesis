@@ -55,45 +55,32 @@ class rl_node(Node):
 
 
 class rl_env(gym.Env):
-	def __init__(self, l0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, epoch = -1, \
+	def __init__(self, L0=10**-4, l2=0, p=10**3, m=5, greedy_epsilon=0.3, batch_n = -1, \
 	branch_model_name='branch_model_in60_lay2', \
 	search_model_name='search_model_in51_lay2'):
 		super(rl_env, self).__init__()
 		""" Note: 'greedy_epsilon' is the probability of choosing random exploration, 
 		for testing performance after training, set greedy_epsilon to zero."""
 
-		# Create n_th epoch sub-directories
-		subprocess.run(f'mkdir action_records/epoch_{epoch}', shell=True)
-		subprocess.run(f'mkdir model_records/epoch_{epoch}', shell=True)
-		subprocess.run(f'mkdir param_for_search/epoch_{epoch}', shell=True)
-		subprocess.run(f'mkdir results_of_search/epoch_{epoch}', shell=True)
-		subprocess.run(f'mkdir model_copies/epoch_{epoch}', shell=True)
-		subprocess.run(f'mkdir ep_res_records/epoch_{epoch}', shell=True)
-		# subprocess.run(f'mkdir sb_copies/epoch_{epoch}', shell=True) # Maybe don't need this?
-	
-		# Make copies of q-models [and stable baselines agent?]
-		subprocess.run(f'cp -r models/* model_copies/epoch_{epoch_n}/', shell=True)
-
 		self.action_space = gym.spaces.Discrete(2)
 		self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(65,))
-		self.l0 = l0
+		self.L0 = L0
 		self.l2 = l2
 		self.p = p
 		self.branch_model_name = branch_model_name
 		self.search_model_name = search_model_name
 		self.greedy_epsilon = greedy_epsilon
-		self.epoch = epoch
+		self.batch_n = batch_n
 
 		# For mini data (p=5)
 		if self.p==5:
-			self.p_sub_dir = 'mini'
-               
+			self.p_sub_dir = 'mini' 
 		# For all other data (p in {10**3, 10**4, 10**5, 10**6})
 		else:
                	    self.p_sub_dir = f'p{int(np.log10(self.p))}'
 
 		self.x_file_list = subprocess.run( \
-	    	f"cd synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}; ls x*_pmini_* -1U", \
+	    	f"cd synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}; ls x* -1U", \
 	    	capture_output=True, text=True, shell=True).stdout.splitlines()
 
 		self.int_tol = 10**-4
@@ -117,7 +104,6 @@ class rl_env(gym.Env):
 		self.current_action = None
 		self.state = None    
 		# Note: self.state is the representation of the state passed to agent (see comment below).
-		self.lower_bound = None    # The minimum primal value over all active nodes.    This is the best
 		self.lower_bound = None    # The minimum primal value over all active nodes.    This is the best
 		# case scenario, i.e. how good any integer solution yet to be found could be.
 		self.lower_bound_node_key = None # The key of the node with the lowest primal value
@@ -146,7 +132,7 @@ class rl_env(gym.Env):
 		if x_file_name is None:
                     if len(self.x_file_list) == 0:
                         self.x_file_list = subprocess.run( \
-                        f"cd synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}; ls x*_pmini_* -1U", \
+                        f"cd synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}; ls x* -1U", \
                         capture_output=True, text=True, shell=True).stdout.splitlines()
                     x_file_name = self.x_file_list.pop(0)
 
@@ -154,11 +140,11 @@ class rl_env(gym.Env):
 	
 		y_file_name = x_file_name.replace('x', 'y')
 		b_file_name = x_file_name.replace('x', 'b')
-		self.x = np.load(f'synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}/{x_file_name}')
-		self.y = np.load(f'synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}/{y_file_name}')
+		self.x = np.load(f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{x_file_name}')
+		self.y = np.load(f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{y_file_name}')
 		self.y = self.y.reshape(1000)
-		self.b = np.load(f'synthetic_data/{self.p_sub_dir}/epoch_{self.epoch}/{b_file_name}')
-		global_stats = np.array([self.l0, self.l2, self.p], dtype=float)
+		self.b = np.load(f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{b_file_name}')
+		global_stats = np.array([self.L0, self.l2, self.p], dtype=float)
 		
 		### Initialize a 'BNBTree' object (as defined in 'l0bnb'), and initialize its root node
 		t = BNBTree(self.x, self.y)
@@ -167,9 +153,10 @@ class rl_env(gym.Env):
 		active_x_i = list(range(self.p))
 		# Note: 'lower_solve' returns the primal value and dual value, and it updates
 		# t.root.primal_value, .dual_value, .primal_beta, .z, .support, .r, .gs_xtr, and .gs_xb
-		t.root.lower_solve(self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+		t.root.lower_solve(self.L0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
 		self.lower_bound = t.root.primal_value
-		t.root.upper_solve(self.l0, self.l2, m=5)
+		self.lower_bound_node_key = 'root_node'
+		t.root.upper_solve(self.L0, self.l2, m=5)
 		self.update_curr_best_int_sol(t.root, 'upper')
 		self.optimality_gap = \
 		    (self.curr_best_int_primal - self.lower_bound) / self.lower_bound
@@ -191,8 +178,10 @@ class rl_env(gym.Env):
 		    	get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
 		
 		# Get q_hats by applying models
-		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'], self.epoch)
-		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'], self.epoch)
+		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'], \
+		self.batch_n, self.L0)
+		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'], \
+		self.batch_n, self.L0)
 
 		# Record stats, keys and q_hats for the branch and search actions passed to the agent
 		self.attach_action_option_stats(branch_stats, branch_keys, search_stats, search_keys, \
@@ -213,9 +202,11 @@ class rl_env(gym.Env):
 			'search_count': self.search_counter,
 			'step_count': self.step_counter,
 			'x_file_name': self.x_file_name,
-			'primal_value': self.curr_best_int_primal,
+			'curr_best_primal_value': self.curr_best_int_primal,
 			'beta': self.curr_best_int_beta,
-			'support': self.curr_best_int_support}
+			'support': self.curr_best_int_support,
+			'lower_bound': self.lower_bound,
+			'opt_gap': self.optimality_gap}
 		return(info)
 
 	def attach_action_option_stats(self, branch_stats, branch_keys, search_stats, search_keys, \
@@ -265,8 +256,8 @@ class rl_env(gym.Env):
 		    search_node = self.active_nodes[search_node_key]
 		    search_node.searched = 1
 		    search_support, search_betas = \
-		    	get_search_solution(node=search_node, p=self.p, l0=self.l0, \
-			l2=self.l2, y=self.y, epoch_n=self.epoch)
+		    	get_search_solution(node=search_node, p=self.p, L0=self.L0, \
+			l2=self.l2, y=self.y, batch_n=self.batch_n)
 
 		    # Find primal value of search solution	
 		    if search_support.shape[0] == 1:
@@ -274,7 +265,7 @@ class rl_env(gym.Env):
 		    else:
 		    	residuals = self.y - np.matmul(self.x[:,search_support], search_betas)
 		    rss = np.dot(residuals, residuals)
-		    search_sol_primal = rss/2 + self.l0*search_support.shape[0] + \
+		    search_sol_primal = rss/2 + self.L0*search_support.shape[0] + \
 		        self.l2*np.dot(search_betas, search_betas)
 
 		    # Check if new solution is best so far
@@ -318,9 +309,9 @@ class rl_env(gym.Env):
 
 		    # Solve relaxations in new nodes
 		    self.active_nodes[node_name_1].lower_solve(\
-		    	self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+		    	self.L0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
 		    self.active_nodes[node_name_2].lower_solve(\
-		    	self.l0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+		    	self.L0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
 
 		    # Update current best integer solution (aka upper bound)
 		    upper_bound_updated = False
@@ -331,7 +322,7 @@ class rl_env(gym.Env):
 		    		upper_bound_updated = True
 		    	del self.active_nodes[node_name_1]
 		    else:    # If not int., find node 1 upper bound, and check if best so far
-		    	n_1_ub = self.active_nodes[node_name_1].upper_solve(self.l0, self.l2, m=5)
+		    	n_1_ub = self.active_nodes[node_name_1].upper_solve(self.L0, self.l2, m=5)
 		    	if n_1_ub < self.curr_best_int_primal:
 		    		self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'upper')
 		    		upper_bound_updated = True
@@ -342,7 +333,7 @@ class rl_env(gym.Env):
 		    		upper_bound_updated = True
 		    	del self.active_nodes[node_name_2]
 		    else:
-		    	n_2_ub = self.active_nodes[node_name_2].upper_solve(self.l0, self.l2, m=5)
+		    	n_2_ub = self.active_nodes[node_name_2].upper_solve(self.L0, self.l2, m=5)
 		    	if n_2_ub < self.curr_best_int_primal:
 		    		self.update_curr_best_int_sol(self.active_nodes[node_name_2], 'upper')
 		    		upper_bound_updated = True
@@ -362,9 +353,12 @@ class rl_env(gym.Env):
 	
 		    # Update lower_bound and lower_bound_node_key
 		    if branch_node_key == self.lower_bound_node_key:
-		        	self.lower_bound = min(self.active_nodes.values(), key=attrgetter('primal_value'))
-		        	self.lower_bound_node_key = reverse_lookup(active_nodes, \
-		    		min(self.active_nodes.values(), key=attrgetter('primal_value')))
+		      if len(self.active_nodes) == 0:
+		        self.lower_bound = self.curr_best_int_primal
+		      else:
+		        self.lower_bound = min(self.active_nodes.values(), key=attrgetter('primal_value')).primal_value
+		        self.lower_bound_node_key = reverse_lookup(self.active_nodes, \
+		        min(self.active_nodes.values(), key=attrgetter('primal_value')))
 		    # else: lower_bound remains unchanged
 		    
 		    ###### End of Branch routine ######
@@ -420,7 +414,7 @@ class rl_env(gym.Env):
 		        (total_n_search - action.n_search), \
 		        action.q_hat[0], \
 		        action.change_in_opt_gap, \
-		        self.epoch], dtype = float)
+		        self.batch_n], dtype = float)
 		    
 		    if action.branch_or_search == 'branch':
 		    	branch_action_records.append(action_record)
@@ -443,7 +437,7 @@ class rl_env(gym.Env):
 		    	    total_n_search - action.n_search, \
 		    	    action.q_hat[0], \
 		            action.change_in_opt_gap, \
-		            self.epoch], dtype = float)
+		            self.batch_n], dtype = float)
 		      
 		    	if action.branch_or_search == 'branch':
 		    		branch_action_records.append(action_record)
@@ -455,33 +449,35 @@ class rl_env(gym.Env):
 		    # Save records
 		    data_info = re.sub('x_', '', self.x_file_name)
 		    data_info = re.sub('.npy', '', data_info)
+		    log_L0 = -int(np.log10(self.L0))
+		    data_info = data_info + 'L0_' +  str(log_L0)
 		    
 		    if branch_action_records:
 		    	branch_action_records = np.vstack(branch_action_records)
 		    	branch_record_dim = branch_action_records.shape[1]
-		    	file_name = f'branch_action_records_dim{branch_record_dim}_{data_info}'
-		    	np.save(f'action_records/epoch_{self.epoch}/{file_name}', branch_action_records)
-		    	
+		    	file_name = f'branch_action_rec_dim{branch_record_dim}_{data_info}'
+		    	np.save(f'action_records/batch_{self.batch_n}/{file_name}', branch_action_records)
+
 		    	branch_model_records = np.vstack(branch_model_records)
 		    	branch_record_dim = branch_model_records.shape[1]
-		    	model_data_info =  f'{data_info}_{self.branch_model_name}_ep{self.epoch}'
-		    	file_name = f'branch_model_records_dim{branch_record_dim}_{model_data_info}'
-		    	np.save(f'model_records/epoch_{self.epoch}/{file_name}', branch_model_records)
+		    	model_data_info =  f'{data_info}_{self.branch_model_name}_b{self.batch_n}'
+		    	file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}'
+		    	np.save(f'model_records/batch_{self.batch_n}/{file_name}', branch_model_records)
 		    	
 		    if search_action_records:
 		    	search_action_records = np.vstack(search_action_records)
 		    	search_record_dim = search_action_records.shape[1]
-		    	file_name = f'search_action_records_dim{search_record_dim}_{data_info}'
-		    	np.save(f'action_records/epoch_{self.epoch}/{file_name}', search_action_records)
+		    	file_name = f'search_action_rec_dim{search_record_dim}_{data_info}'
+		    	np.save(f'action_records/batch_{self.batch_n}/{file_name}', search_action_records)
 		    	
 		    	search_model_records = np.vstack(search_model_records)
 		    	search_record_dim = search_model_records.shape[1]
-		    	model_data_info =  f'{data_info}_{self.search_model_name}_ep{self.epoch}'
-		    	file_name = f'search_model_records_dim{search_record_dim}_{model_data_info}'
-		    	np.save(f'model_records/epoch_{self.epoch}/{file_name}', search_model_records)
+		    	model_data_info =  f'{data_info}_{self.search_model_name}_b{self.batch_n}'
+		    	file_name = f'search_model_rec_dim{search_record_dim}_{model_data_info}'
+		    	np.save(f'model_records/batch_{self.batch_n}/{file_name}', search_model_records)
 		    
 		    info = self.get_info()
-		    file_name = f'ep_res_records/epoch_{self.epoch}/{data_info}.pkl'
+		    file_name = f'ep_res_records/batch_{self.batch_n}/{data_info}.pkl' # Drop this if tensor Board works
 		    with open(file_name, 'wb') as f:
 		        pickle.dump(info, f)
 
@@ -496,7 +492,7 @@ class rl_env(gym.Env):
 		    
 		### If we're NOT done . . . 
 		### Gather Stats
-		global_stats = np.array([self.l0, self.l2, self.p])		
+		global_stats = np.array([self.L0, self.l2, self.p])		
 		active_x_i = []
 		for node_key in self.active_nodes:
 		    active_x_i = active_x_i + \
@@ -529,8 +525,10 @@ class rl_env(gym.Env):
 
 		# Get q_hats applying models 
 		# (to possilby 1 action option, all action options, or a capped # of action options)
-		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'], self.epoch)
-		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'], self.epoch)
+		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'], \
+		self.batch_n, self.L0)
+		search_q_hats = get_q_hats(self.search_model_name, search_stats, self.state['static_stats'], \
+		self.batch_n, self.L0)
 
 		# Attach stats, keys and q_hats for the branch and search actions passed to the agent
 		self.attach_action_option_stats(branch_stats, branch_keys, search_stats, search_keys, \
@@ -548,8 +546,3 @@ class rl_env(gym.Env):
 
 	def close(self):
     		pass
-
-
-
-
-

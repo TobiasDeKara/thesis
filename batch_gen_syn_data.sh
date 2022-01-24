@@ -27,13 +27,12 @@
 # Specify a job name:
 #SBATCH -J mini
 
-#SBATCH --array=1-100
+#SBATCH --array=0-99
 
 # Specify an output file
 # Use '%A' for array-job ID, '%J' for job ID and '%a' for task ID
-#SBATCH -o MySerialJob-%a.out
-#SBATCH -e MySerialJob-%a.out
-
+#SBATCH -e ./sbatch_errors/gen_syn-%a.err
+#SBATCH -o ./sbatch_outputs/gen_syn-%a.out
 #----- End of slurm commands ----
 
 # Run commands
