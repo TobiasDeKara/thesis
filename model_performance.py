@@ -89,7 +89,7 @@ def get_validation_mse(batch_n=1):
                 x, y = np.hsplit(branch_record, np.array([n_col-1]))
                 batch_mse = branch_model.evaluate(x, y, verbose=0)
                 batch_size =  branch_record.shape[0]
-                sum_sq += batch_mse*batch_n
+                sum_sq += batch_mse*batch_size
                 n_branches += batch_size
             branch_mse = sum_sq / n_branches
         else:
@@ -106,9 +106,9 @@ def get_validation_mse(batch_n=1):
                 n_col = search_record.shape[1]
                 x, y = np.hsplit(search_record, np.array([n_col-1]))
                 batch_mse = search_model.evaluate(x, y, verbose=0)
-                batch_n = search_record.shape[0]
-                sum_sq += batch_mse*batch_n
-                n_searches += batch_n
+                batch_size = search_record.shape[0]
+                sum_sq += batch_mse*batch_size
+                n_searches += batch_size
             search_mse = sum_sq / n_searches
     return(f'branch_mse: {branch_mse}, search_mse: {search_mse}, \
     n_branches: {n_branches}, n_searches: {n_searches}')

@@ -55,7 +55,7 @@ class rl_node(Node):
 
 
 class rl_env(gym.Env):
-	def __init__(self, L0=10**-4, l2=0, p=10**3, m=5, greedy_epsilon=0.3, batch_n = -1, \
+	def __init__(self, L0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, batch_n = -1, \
 	branch_model_name='branch_model_in60_lay2', \
 	search_model_name='search_model_in51_lay2'):
 		super(rl_env, self).__init__()
@@ -147,7 +147,8 @@ class rl_env(gym.Env):
 		global_stats = np.array([self.L0, self.l2, self.p], dtype=float)
 		
 		### Initialize a 'BNBTree' object (as defined in 'l0bnb'), and initialize its root node
-		t = BNBTree(self.x, self.y)
+		t = BNBTree(self.x, self.y) # TODO: Do I need this?
+		# Is "xi_norm =  np.linalg.norm(x, axis=0) ** 2" all we need?
 		t.root = rl_node(parent=None, zlb=[], zub=[], x=t.x, y=t.y, xi_norm=t.xi_norm)
 		self.active_nodes['root_node'] = t.root
 		active_x_i = list(range(self.p))
@@ -477,9 +478,10 @@ class rl_env(gym.Env):
 		    	np.save(f'model_records/batch_{self.batch_n}/{file_name}', search_model_records)
 		    
 		    info = self.get_info()
-		    file_name = f'ep_res_records/batch_{self.batch_n}/{data_info}.pkl' # Drop this if tensor Board works
-		    with open(file_name, 'wb') as f:
-		        pickle.dump(info, f)
+		    # file_name = f'ep_res_records/batch_{self.batch_n}/{data_info}.pkl' 
+		    # Drop this if tensor Board works
+		    # with open(file_name, 'wb') as f:
+		        # pickle.dump(info, f)
 
 		    ### Gather return values
 		    done = True

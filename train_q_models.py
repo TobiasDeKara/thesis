@@ -15,7 +15,7 @@ batch_n = int(sys.argv[1])
 # Update parameters of Branch Model
 branch_model_name = 'branch_model_in60_lay2'
 branch_model = tf.keras.models.load_model(f'./models/{branch_model_name}')
-b_log_dir = "tb_logs/q_branch" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+b_log_dir = "tb_logs/q_branch/run_1"  # datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=b_log_dir, histogram_freq=1)
 
 branch_record_list = subprocess.run(f'cd action_records/batch_{batch_n}; ls branch* -1U', \
@@ -32,7 +32,7 @@ branch_model.save(f'./models/{branch_model_name}')
 # Repeat for Search Model
 search_model_name='search_model_in51_lay2'
 search_model = tf.keras.models.load_model(f'./models/{search_model_name}')
-s_log_dir = "tb_logs/q_search" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+s_log_dir = "tb_logs/q_search/run_1"  # datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=s_log_dir, histogram_freq=1)
 
 search_record_list = subprocess.run(f'cd action_records/batch_{batch_n}; ls search* -1U', \

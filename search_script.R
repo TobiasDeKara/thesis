@@ -11,9 +11,9 @@ library(L0Learn)
 library(readr)
 args = commandArgs(trailingOnly = TRUE)
 batch_n = args[1]
-print(paste0('batch_n: ', batch_n))
+# print(paste0('batch_n: ', batch_n))
 log_L0 = args[2]
-print(paste0('log_L0: ', log_L0))
+# print(paste0('log_L0: ', log_L0))
 path <- paste0('./param_for_search/batch_', batch_n, '/L0_', log_L0, '/')
 x_sub <- read_csv(paste0(path, 'x_sub_mat.csv'), col_names=TRUE, show_col_types = FALSE)
 col_names <- as.integer(names(x_sub)) # these are the indexes of the variables relative to p
