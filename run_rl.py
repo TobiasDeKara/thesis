@@ -28,17 +28,20 @@ from math import floor
 
 if __name__ ==  "__main__":
 	first_batch_n = int(sys.argv[1]) # passed from command line when using and array job
+	run_n = int(sys.argv[2])
 
 	L0_list=[10**-2, 10**-3, 10**-4]
+	
+	# Create run sub-directories for records
+	subprocess.run(f'mkdir action_records/run_{run_n}', shell=True)
+	subprocess.run(f'mkdir model_records/run_{run_n}', shell=True)
+#	# subprocess.run(f'mkdir ep_res_records/batch_{batch}', shell=True)
 
 	for batch in range(first_batch_n, (first_batch_n + 8)):
 		# Create batch sub-directories
-#		subprocess.run(f'mkdir action_records/batch_{batch}', shell=True)
-#		subprocess.run(f'mkdir model_records/batch_{batch}', shell=True)
 #		subprocess.run(f'mkdir param_for_search/batch_{batch}', shell=True)
 #		subprocess.run(f'mkdir results_of_search/batch_{batch}', shell=True)
 #		subprocess.run(f'mkdir model_copies/batch_{batch}', shell=True)
-#		subprocess.run(f'mkdir ep_res_records/batch_{batch}', shell=True)
 
 		for L0 in L0_list:
 			# Create L0 sub-directories

@@ -55,7 +55,7 @@ class rl_node(Node):
 
 
 class rl_env(gym.Env):
-	def __init__(self, L0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, batch_n = -1, \
+	def __init__(self, L0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, run_n=0, batch_n=0, \
 	branch_model_name='branch_model_in60_lay2', \
 	search_model_name='search_model_in51_lay2'):
 		super(rl_env, self).__init__()
@@ -70,7 +70,16 @@ class rl_env(gym.Env):
 		self.branch_model_name = branch_model_name
 		self.search_model_name = search_model_name
 		self.greedy_epsilon = greedy_epsilon
-		self.batch_n = batch_n
+		self.run_n = run_n
+		self.batch_n = batch_n 
+		# A 'batch' index is used for each sub-directory of 'thesis/synthetic_data/{p_sub_dir}' 
+		# that has its own subset of the training data.  A 'run' index is used to indicated how many
+		# times the q_models have been updated, and a run will involve using several batches of data.
+		# When training using a vectorized environment, each batch of training data is assigned 3 
+		# workers, one for each of 3 values of the L0 penalty.  
+		# Each worker (or each combination of batch index and L0 penalty value) is given its own 
+		# subdirectories for 1. passing parameters to the search subroutine, 2. collecting results
+		# from the search subroutine, and 3. calling a copies of the q_models.
 
 		# For mini data (p=5)
 		if self.p==5:
