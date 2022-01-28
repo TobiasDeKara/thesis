@@ -1,0 +1,45 @@
+# thesis
+Reinforcement Learning for Best Subset Variable Selection
+
+
+File structure
+~/theis/
+  |- action_records  # These records are independent of model.  They record the state, action taken, and observed reward.
+      |- run_0
+      |- run_1
+      ...
+      |- run_n
+  |- model_records  
+       # These record the number of steps, number of branches and number of searches prior to a given state, and from that state
+       # to the end of the episode.  These records also have the q_hat, the observed reward, and the run number.
+      |- run_0
+      |- run_1
+      ...
+      |- run_n
+  |- model_copies  
+      # These sub-directories are assigned one per worker during vectorized training.  And these files are meant to be overwritten for each run.
+      |- batch_0
+          |- L2
+          |- L3
+          |- L4
+      |- batch_1
+      ...
+      |- batch_n
+  |- param_for_search
+      # These sub-directories are assigned one per worker during vectorized training.  And these files are meant to be overwritten for each run.
+      |- batch_0
+          |- L2
+          |- L3
+          |- L4
+      |- batch_1
+      ...
+      |- batch_n
+  |- results_of_search
+      # These sub-directories are assigned one per worker during vectorized training.  And these files are meant to be overwritten for each run.
+      |- batch_0
+          |- L2
+          |- L3
+          |- L4
+      |- batch_1
+      ...
+      |- batch_n
