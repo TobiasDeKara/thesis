@@ -424,7 +424,7 @@ class rl_env(gym.Env):
 		        (total_n_search - action.n_search), \
 		        action.q_hat[0], \
 		        action.change_in_opt_gap, \
-		        self.batch_n], dtype = float)
+		        self.run_n], dtype = float)
 		    
 		    if action.branch_or_search == 'branch':
 		    	branch_action_records.append(action_record)
@@ -466,25 +466,25 @@ class rl_env(gym.Env):
 		    	branch_action_records = np.vstack(branch_action_records)
 		    	branch_record_dim = branch_action_records.shape[1]
 		    	file_name = f'branch_action_rec_dim{branch_record_dim}_{data_info}'
-		    	np.save(f'action_records/batch_{self.batch_n}/{file_name}', branch_action_records)
+		    	np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
 
 		    	branch_model_records = np.vstack(branch_model_records)
 		    	branch_record_dim = branch_model_records.shape[1]
 		    	model_data_info =  f'{data_info}_{self.branch_model_name}_b{self.batch_n}'
 		    	file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}'
-		    	np.save(f'model_records/batch_{self.batch_n}/{file_name}', branch_model_records)
+		    	np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
 		    	
 		    if search_action_records:
 		    	search_action_records = np.vstack(search_action_records)
 		    	search_record_dim = search_action_records.shape[1]
 		    	file_name = f'search_action_rec_dim{search_record_dim}_{data_info}'
-		    	np.save(f'action_records/batch_{self.batch_n}/{file_name}', search_action_records)
+		    	np.save(f'action_records/run_{self.run_n}/{file_name}', search_action_records)
 		    	
 		    	search_model_records = np.vstack(search_model_records)
 		    	search_record_dim = search_model_records.shape[1]
 		    	model_data_info =  f'{data_info}_{self.search_model_name}_b{self.batch_n}'
 		    	file_name = f'search_model_rec_dim{search_record_dim}_{model_data_info}'
-		    	np.save(f'model_records/batch_{self.batch_n}/{file_name}', search_model_records)
+		    	np.save(f'model_records/run_{self.run_n}/{file_name}', search_model_records)
 		    
 		    info = self.get_info()
 		    # file_name = f'ep_res_records/batch_{self.batch_n}/{data_info}.pkl' 
