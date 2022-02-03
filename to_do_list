@@ -1,0 +1,6 @@
+combine the model records?  Maybe not if we get tb running.
+finish refactoring model_performance.py?  Maybe not if we get tb running.
+
+remove records from tb_logs/q_branch
+choose a run time and epoch number that match.  5 seconds per epoch (based on the first 20).
+research, how to call model.fit again can pick up the same tb log
