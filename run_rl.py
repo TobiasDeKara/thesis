@@ -54,7 +54,3 @@ if __name__ ==  "__main__":
 	model = A2C.load("sb_models/a2c_mini", vec_env)
 	model.learn(total_timesteps=50000, log_interval=1000, tb_log_name=f'run_{run_n}')
 	model.save("sb_models/a2c_mini")
-
-	# Update q-model parameters and sb agent
-	subprocess.run(f'python train_q_models.py {run_n}', shell=True)
-
