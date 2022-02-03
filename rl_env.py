@@ -21,7 +21,6 @@ from operator import attrgetter
 import re
 import pickle
 
-# TODO: add more sub_directories for records for different size p
 
 # Note on optimality gap:
 # optimality gap = (upper bound - lower bound) / lower bound
@@ -56,14 +55,14 @@ class rl_node(Node):
 
 class rl_env(gym.Env):
 	def __init__(self, L0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, run_n=0, batch_n=0, \
-	branch_model_name='branch_model_in60_lay2', \
-	search_model_name='search_model_in51_lay2'):
+	branch_model_name='branch_model_in61_lay2', \
+	search_model_name='search_model_in53_lay2'):
 		super(rl_env, self).__init__()
 		""" Note: 'greedy_epsilon' is the probability of choosing random exploration, 
 		for testing performance after training, set greedy_epsilon to zero."""
 
 		self.action_space = gym.spaces.Discrete(2)
-		self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(65,))
+		self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(67,))
 		self.L0 = L0
 		self.l2 = l2
 		self.p = p
@@ -79,7 +78,7 @@ class rl_env(gym.Env):
 		# workers, one for each of 3 values of the L0 penalty.  
 		# Each worker (or each combination of batch index and L0 penalty value) is given its own 
 		# subdirectories for 1. passing parameters to the search subroutine, 2. collecting results
-		# from the search subroutine, and 3. calling a copies of the q_models.
+		# from the search subroutine, and 3. calling copies of the q_models.
 
 		# For mini data (p=5)
 		if self.p==5:
@@ -116,6 +115,7 @@ class rl_env(gym.Env):
 		self.lower_bound = None    # The minimum primal value over all active nodes.    This is the best
 		# case scenario, i.e. how good any integer solution yet to be found could be.
 		self.lower_bound_node_key = None # The key of the node with the lowest primal value
+		self.initial_optimality_gap = None
 		self.optimality_gap = None
 
 	def reset(self, x_file_name=None):
@@ -153,25 +153,27 @@ class rl_env(gym.Env):
 		self.y = np.load(f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{y_file_name}')
 		self.y = self.y.reshape(1000)
 		self.b = np.load(f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{b_file_name}')
-		global_stats = np.array([self.L0, self.l2, self.p], dtype=float)
 		
-		### Initialize a 'BNBTree' object (as defined in 'l0bnb'), and initialize its root node
-		t = BNBTree(self.x, self.y) # TODO: Do I need this?
-		# Is "xi_norm =  np.linalg.norm(x, axis=0) ** 2" all we need?
-		t.root = rl_node(parent=None, zlb=[], zub=[], x=t.x, y=t.y, xi_norm=t.xi_norm)
-		self.active_nodes['root_node'] = t.root
+		### Initialize root node
+		xi_norm =  np.linalg.norm(self.x, axis=0) ** 2
+		root_node = rl_node(parent=None, zlb=[], zub=[], x=self.x, y=self.y, xi_norm=xi_norm)
+		self.active_nodes['root_node'] = root_node
 		active_x_i = list(range(self.p))
 		# Note: 'lower_solve' returns the primal value and dual value, and it updates
-		# t.root.primal_value, .dual_value, .primal_beta, .z, .support, .r, .gs_xtr, and .gs_xb
-		t.root.lower_solve(self.L0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
-		self.lower_bound = t.root.primal_value
+		# root_node.primal_value, .dual_value, .primal_beta, .z, .support, .r, .gs_xtr, and .gs_xb
+		root_node.lower_solve(self.L0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+		self.lower_bound = root_node.primal_value
 		self.lower_bound_node_key = 'root_node'
-		t.root.upper_solve(self.L0, self.l2, m=5)
-		self.update_curr_best_int_sol(t.root, 'upper')
+		root_node.upper_solve(self.L0, self.l2, m=5)
+		self.update_curr_best_int_sol(root_node, 'upper')
+		self.initial_optimality_gap = \
+		    (self.curr_best_int_primal - self.lower_bound) / self.lower_bound
 		self.optimality_gap = \
 		    (self.curr_best_int_primal - self.lower_bound) / self.lower_bound
 
+
 		#### Gather stats for 'observation'
+		global_stats = np.array([self.L0, self.l2, self.p, self.initial_optimality_gap], dtype=float)
 		self.cov = self.x.shape[0] * np.cov(self.x, rowvar=False, bias=True)
 		self.state['static_stats'] = get_static_stats(self.cov, self.x, self.y, \
 		    	self.active_nodes, active_x_i, global_stats)
@@ -181,11 +183,11 @@ class rl_env(gym.Env):
 		if random_number < self.greedy_epsilon:
 		    # Choose random branch and search actions, and get stats
 		    branch_stats, search_stats, branch_keys, search_keys = \
-		    	get_random_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
+		    	get_random_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y, self.lower_bound_node_key)
 		else:
 		    # Get stats for all available actions
 		    branch_stats, search_stats, branch_keys, search_keys = \
-		    	get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
+		    	get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y, self.lower_bound_node_key)
 		
 		# Get q_hats by applying models
 		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'], \
@@ -201,7 +203,6 @@ class rl_env(gym.Env):
 		observation = np.concatenate([self.state['static_stats'], self.state['branch_option_stats'], \
 		self.state['search_option_stats']])
 		
-		# prin(init_og = self.optimality_gap, init_ub = self.curr_best_int_primal, init_lb=self.lower_bound)
 		return(observation)
     	#### End of reset() #######
 
@@ -216,6 +217,7 @@ class rl_env(gym.Env):
 			'beta': self.curr_best_int_beta,
 			'support': self.curr_best_int_support,
 			'lower_bound': self.lower_bound,
+			'init_opt_gap' : self.initial_optimality_gap,
 			'opt_gap': self.optimality_gap}
 		return(info)
 
@@ -314,9 +316,6 @@ class rl_env(gym.Env):
 		    	x=branch_node.x, y=branch_node.y, xi_norm=branch_node.xi_norm)
 		    del self.active_nodes[branch_node_key] 
 
-		    # TODO: look into the following (from 'tree.solve') ...
-		    # "upper_bound, upper_beta, support = self._warm_start(warm_start, verbose, l0, l2, m)"
-
 		    # Solve relaxations in new nodes
 		    self.active_nodes[node_name_1].lower_solve(\
 		    	self.L0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
@@ -378,11 +377,7 @@ class rl_env(gym.Env):
 		### Calculate change in optimality gap 
 		prev_opt_gap = self.optimality_gap
 		self.optimality_gap = (self.curr_best_int_primal - self.lower_bound) / self.lower_bound
-		change_in_opt_gap = prev_opt_gap - self.optimality_gap
-		# Scaling for numerical reasons ... 
-		# The un-scaled initial O.G. is often on the order of 10**-3, so when the model 
-		# estimates zero, the mean squared error is often on the order of 10**6.
-		change_in_opt_gap = change_in_opt_gap*10000
+		frac_change_in_opt_gap = (prev_opt_gap - self.optimality_gap) / self.initial_optimality_gap
 		
 		### Attach stats on action taken <==> Update self.current_action
 		if branch_or_search == 'branch':
@@ -398,7 +393,7 @@ class rl_env(gym.Env):
 		self.current_action = action_taken(prev_action, branch_or_search, \
 			    self.state['static_stats'], specific_stats, q_hat, self.step_counter, \
 			    self.branch_counter, self.search_counter, \
-			    change_in_opt_gap)
+			    frac_change_in_opt_gap)
 			    
 
 		### If we're done ...
@@ -415,7 +410,7 @@ class rl_env(gym.Env):
 		    # Get records of most recent action taken
 		    action_record = np.concatenate([action.static_stats, \
 		        action.specific_stats])
-		    action_record = np.append(action_record, action.change_in_opt_gap)
+		    action_record = np.append(action_record, action.frac_change_in_opt_gap)
 		        
 		    model_record = np.array([
 		        action.step_number, action.n_branch, action.n_search, \
@@ -423,7 +418,7 @@ class rl_env(gym.Env):
 		        (total_n_branch - action.n_branch), \
 		        (total_n_search - action.n_search), \
 		        action.q_hat[0], \
-		        action.change_in_opt_gap, \
+		        action.frac_change_in_opt_gap, \
 		        self.run_n], dtype = float)
 		    
 		    if action.branch_or_search == 'branch':
@@ -438,7 +433,7 @@ class rl_env(gym.Env):
 		    	action = action.prev_action
 		    	action_record = np.concatenate([action.static_stats, \
 		    	action.specific_stats])
-		    	action_record = np.append(action_record, action.change_in_opt_gap)
+		    	action_record = np.append(action_record, action.frac_change_in_opt_gap)
 		            
 		    	model_record = np.array([
 		    	    action.step_number, action.n_branch, action.n_search, \
@@ -446,7 +441,7 @@ class rl_env(gym.Env):
 		    	    total_n_branch - action.n_branch, \
 		    	    total_n_search - action.n_search, \
 		    	    action.q_hat[0], \
-		            action.change_in_opt_gap, \
+		            action.frac_change_in_opt_gap, \
 		            self.batch_n], dtype = float)
 		      
 		    	if action.branch_or_search == 'branch':
@@ -495,7 +490,7 @@ class rl_env(gym.Env):
 		    ### Gather return values
 		    done = True
 		    observation = np.zeros((65))
-		    reward = change_in_opt_gap
+		    reward = frac_change_in_opt_gap
 	
 		    return(observation, reward, done, info)
 		### End of "If we're done" #########
@@ -503,7 +498,7 @@ class rl_env(gym.Env):
 		    
 		### If we're NOT done . . . 
 		### Gather Stats
-		global_stats = np.array([self.L0, self.l2, self.p])		
+		global_stats = np.array([self.L0, self.l2, self.p, self.initial_optimality_gap])		
 		active_x_i = []
 		for node_key in self.active_nodes:
 		    active_x_i = active_x_i + \
@@ -520,11 +515,11 @@ class rl_env(gym.Env):
 		if random_number < self.greedy_epsilon:
 		    # Choose random branch and search actions, and get stats
 		    branch_stats, search_stats, branch_keys, search_keys = \
-		    	get_random_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
+		    	get_random_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y, self.lower_bound_node_key)
 		else:
 		    # Get stats for all available actions
 		    branch_stats, search_stats, branch_keys, search_keys = \
-		    	get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y)
+		    	get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y, self.lower_bound_node_key)
 		
 		    # Cap the number of branch and search actions passed to the q models at p**2
 		    if branch_stats.shape[0] > self.p**2:
@@ -548,7 +543,7 @@ class rl_env(gym.Env):
 		observation = np.concatenate([self.state['static_stats'], self.state['branch_option_stats'], \
 		    self.state['search_option_stats']])
 		done = False
-		reward = change_in_opt_gap
+		reward = frac_change_in_opt_gap
 		# prin(reward=reward, prev_opt_gap = prev_opt_gap, og = self.optimality_gap, \
 		#    ub = self.curr_best_int_primal, lb=self.lower_bound)
 		info = self.get_info()
