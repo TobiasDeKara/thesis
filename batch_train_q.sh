@@ -2,7 +2,7 @@
 
 # --- Start of slurm commands -----------
 
-#SBATCH --time=40:00
+#SBATCH --time=2:00:00
 #SBATCH --mem=2G 
 
 # Specify a job name:

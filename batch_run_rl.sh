@@ -9,7 +9,7 @@
 # --- Start of slurm commands -----------
 
 # Request an hour of runtime:
-#SBATCH --time=8:00:00
+#SBATCH --time=5:00:00
 
 ##SBATCH -p debug
 
@@ -20,7 +20,7 @@
 # Specify a job name:
 #SBATCH -J rl_4
 
-#SBATCH --array=0-95:8
+#SBATCH --array=0-12
 
 # Use '%A' for array-job ID, '%J' for job ID and '%a' for task ID
 #SBATCH -e ./sbatch_errors/%J%a.err
@@ -33,7 +33,8 @@ module load python/3.9.0
 source ~/L0_env_p3.9.0/bin/activate
 
 python ~/thesis/run_rl.py $SLURM_ARRAY_TASK_ID
-# python -u ~/thesis/run_rl.py 0
+
+# python -u ~/thesis/run_rl.py {first batch number} {run_n}
 # Note: python -u ~/thesis/run_rl.py <batch_n>, will make record, 
 # 	and search param/result sub-dir. batch_n
 # 'u' for unbuffered, meaning print statements are returned immediately

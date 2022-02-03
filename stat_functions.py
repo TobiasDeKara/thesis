@@ -4,7 +4,7 @@ import random
 
 def get_active_node_stats(active_nodes):
 	# Summary statisitics that describe the set of all active nodes
-	# (The function that gets summary stats for each node is 'get_node_stats'
+	# (The function that gets summary stats for each node is 'get_node_stats')
 	len_zubs, len_zlbs, primal_values, len_supports, searched = [], [], [], [], []
 	for key in active_nodes:
 		node = active_nodes[key]
@@ -24,10 +24,12 @@ def get_active_node_stats(active_nodes):
 	active_node_stats = np.append(active_node_stats, len(active_nodes))
 	return(active_node_stats)
 
-def get_node_stats(node):
+def get_node_stats(node, node_key, lower_bound_node_key):
 	# Returns 5 summary stats for a given node
 	len_support = len(node.support) if node.support else 0
-	node_stats = np.array([len(node.zub), len(node.zlb), node.primal_value, len_support, node.searched], dtype=float, ndmin=1)
+	has_lb = (lower_bound_node_key == node_key)
+	node_stats = np.array([len(node.zub), len(node.zlb), node.primal_value, len_support, node.searched, has_lb], \
+	dtype=float, ndmin=1)
 	return(node_stats)
 
 def get_static_stats(cov, x, y, active_nodes, active_x_i, global_stats):
@@ -65,7 +67,7 @@ def get_static_stats(cov, x, y, active_nodes, active_x_i, global_stats):
 	return(static_stats)
 
 
-def get_all_action_stats(active_nodes, p, cov, x, y):
+def get_all_action_stats(active_nodes, p, cov, x, y, lower_bound_key):
 	# Note: the 'searching_stats' are the same as 'node_stats' because for searching we only need to chose a node to search in
 	# Returns:
 	# 	1.  'all_branching_stats': an np.array of stats for branching, one row per active node/x_i pair,
@@ -78,7 +80,7 @@ def get_all_action_stats(active_nodes, p, cov, x, y):
 	for key in active_nodes:
 		### Stats for node
 		node = active_nodes[key]
-		node_stats = get_node_stats(node)
+		node_stats = get_node_stats(node, key, lower_bound_key)
 		all_searching_stats.append(node_stats)
 		all_searching_keys.append(key)
 
@@ -90,23 +92,24 @@ def get_all_action_stats(active_nodes, p, cov, x, y):
 			x_i_cov = np.partition(cov[i,:], -1)[:-1]
 			x_i_cov_percentiles = np.quantile(x_i_cov,[0,0.25,0.5,0.75,1])
 			x_dot_y = np.dot(x[:,i], y)
-			x_i_stats = np.append(x_i_cov_percentiles, x_dot_y)
 
-			### Stats for x_i and node interaction
-			lb = 1 if i in node.zlb else 0
-			ub = 0 if i in node.zub else 1
 			# Note: len(node.primal_beta) == len(support) != p, so
 			# the beta values are indexed relative to len(support)
 			if node.support and i in node.support:
+				x_in_node_support = 1
 				beta = node.primal_beta[node.support.index(i)]
 			else:
+				x_in_node_support = 0
 				beta = 0
-			x_i_node_stats = np.array([lb, ub, beta], dtype=float)
+
+			x_i_stats = np.concatenate((x_i_cov_percentiles, \
+				np.array([x_dot_y, x_in_node_support, beta])))
+
 			branching_keys = np.array([i, key], dtype=str)
 			all_branching_keys.append(branching_keys)
 
 			### Collect branching-specific stats
-			branching_specific_arrays = [node_stats, x_i_stats, x_i_node_stats]
+			branching_specific_arrays = [node_stats, x_i_stats]
 			branching_specific_stats = np.concatenate(branching_specific_arrays)
 			all_branching_stats.append(branching_specific_stats)
         
@@ -119,7 +122,7 @@ def get_all_action_stats(active_nodes, p, cov, x, y):
 	return(all_branching_stats, all_searching_stats, all_branching_keys, all_searching_keys)
 
 
-def get_random_action_stats(active_nodes, p, cov, x, y):
+def get_random_action_stats(active_nodes, p, cov, x, y, lower_bound_key):
 	# Note: the 'search_stats' are the same as 'node_stats' because for searching we only need to chose a node to search in
 	# Returns:
 	# 	1.  'branch_stats': an np vector of stats for branching on a randomly chosen active x_i in the randomly chosen active node,
@@ -130,11 +133,11 @@ def get_random_action_stats(active_nodes, p, cov, x, y):
 	### Search
 	search_key, search_node = random.choice(list(active_nodes.items()))
 	search_key = np.array(search_key, dtype=str, ndmin=1)
-	search_stats = get_node_stats(search_node)
+	search_stats = get_node_stats(search_node, search_key, lower_bound_key)
 	
 	### Branch
 	branch_node_key, branch_node = random.choice(list(active_nodes.items()))
-	branch_node_stats = get_node_stats(branch_node)
+	branch_node_stats = get_node_stats(branch_node, branch_node_key, lower_bound_key)
 
 	# Randomly choose an x_i that is active in this specific node     
 	node_active_x_i = [i for i in range(p) if i not in branch_node.zlb and i not in branch_node.zub]
@@ -144,24 +147,22 @@ def get_random_action_stats(active_nodes, p, cov, x, y):
 	x_i_cov = np.partition(cov[i,:], -1)[:-1]
 	x_i_cov_percentiles = np.quantile(x_i_cov,[0,0.25,0.5,0.75,1])
 	x_dot_y = np.dot(x[:,i], y)
-	x_i_stats = np.append(x_i_cov_percentiles, x_dot_y)
-
-	# Stats for x_i and node interaction
-	lb = 1 if i in branch_node.zlb else 0
-	ub = 0 if i in branch_node.zub else 1
 
 	# Note: the use of '.index(i)' below is becuase 
 	# len(node.primal_beta) == len(support) != p,
 	# so the beta values are indexed relative to len(support)
 	if branch_node.support and i in branch_node.support:
-		beta = branch_node.primal_beta[branch_node.support.index(i)]
+		x_in_node_support = 1
+		node_beta = branch_node.primal_beta[branch_node.support.index(i)]
 	else:
-		beta = 0
-	x_i_node_stats = np.array([lb, ub, beta], dtype=float)
+		x_in_node_support = 0
+		node_beta = 0
+
+	x_i_stats = np.concatenate((x_i_cov_percentiles, np.array([x_dot_y, x_in_node_support, node_beta])))
 
 	# Collect branch stats
 	branch_keys = np.array([i, branch_node_key], dtype=str, ndmin=2)
-	branch_arrays = [branch_node_stats, x_i_stats, x_i_node_stats]
+	branch_arrays = [branch_node_stats, x_i_stats]
 	branch_stats = np.concatenate(branch_arrays)
 	branch_stats = np.array(branch_stats, ndmin=2)
 

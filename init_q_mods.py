@@ -5,19 +5,19 @@ from tensorflow.keras import layers
 
 # For Branhcing
 branch_model = keras.Sequential()
-branch_model.add( layers.Dense(4, activation="relu", input_shape=(60,)) ) # 46 static stats plus 14 branch-specific stats
+branch_model.add( layers.Dense(4, activation="relu", input_shape=(61,)) ) # 47 static stats plus 14 branch-specific stats
 branch_model.add(layers.Dense(1, activation="relu"))
-optimizer = keras.optimizers.Adam(learning_rate=0.01) # default learning rate == 0.001
+optimizer = keras.optimizers.Adam(learning_rate=0.00001) # default learning rate == 0.001
 branch_model.compile(optimizer=optimizer, loss= "mean_squared_error")
 print(branch_model.summary())
-branch_model.save('./models/branch_model_in60_lay2')
+branch_model.save('./models/branch_model_in61_lay2')
 
 # For Searching
-search_model = keras.Sequential()
-search_model.add( layers.Dense(4, activation="relu", input_shape=(51,)) ) # 46 static stats plus 5 search-node-specific
-search_model.add(layers.Dense(1, activation="relu"))
-optimizer = keras.optimizers.Adam(learning_rate=0.01) # default learning rate == 0.001
-search_model.compile(optimizer=optimizer, loss= "mean_squared_error")
-print(search_model.summary())
-search_model.save('./models/search_model_in51_lay2')
+#search_model = keras.Sequential()
+#search_model.add( layers.Dense(4, activation="relu", input_shape=(53,)) ) # 47 static stats plus 6 search-node-specific
+#search_model.add(layers.Dense(1, activation="relu"))
+#optimizer = keras.optimizers.Adam(learning_rate=0.001) # default learning rate == 0.001
+#search_model.compile(optimizer=optimizer, loss= "mean_squared_error")
+#print(search_model.summary())
+#search_model.save('./models/search_model_in53_lay2')
 
