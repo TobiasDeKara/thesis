@@ -27,7 +27,7 @@
 # Specify a job name:
 #SBATCH -J mini
 
-#SBATCH --array=0-99
+#SBATCH --array=100-191
 
 # Specify an output file
 # Use '%A' for array-job ID, '%J' for job ID and '%a' for task ID

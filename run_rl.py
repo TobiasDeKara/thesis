@@ -1,5 +1,6 @@
 # Runs episodes, then executes 'train_q_models.py',
-# which updates the model parameters, creates a new sub-directory for the
+# which updates the stable baselines rl agent model parameters, 
+# creates a new sub-directory for the
 # action records, param_for_search, and search_results 
 
 import sys
@@ -15,21 +16,18 @@ from make_env import make_env
 from stable_baselines3.common.vec_env import VecMonitor
 from math import floor
 
-# TODO: tensor Board
 # TODO: compare pred and obs support
 
-
 if __name__ ==  "__main__":
-	# first_batch_n = int(sys.argv[1]) # passed from command line when using and array job
-	run_n = int(sys.argv[1])
-	first_batch_n = run_n*8
+	run_n = int(sys.argv[1]) # passed from command line when using and array job
+	first_batch_n = int(sys.argv[2])
 
 	L0_list=[10**-2, 10**-3, 10**-4]
 	
 	# Create run sub-directories for records
 	subprocess.run(f'mkdir action_records/run_{run_n}', shell=True)
 	subprocess.run(f'mkdir model_records/run_{run_n}', shell=True)
-	# subprocess.run(f'mkdir ep_res_records/batch_{batch}', shell=True)
+	subprocess.run(f'mkdir ep_res_records/run_{run_n}', shell=True)
 
 	for batch in range(first_batch_n, (first_batch_n + 8)):
 		# Create batch sub-directories
@@ -47,7 +45,7 @@ if __name__ ==  "__main__":
 			# Make copies of q-models
 			subprocess.run(f'cp -r models/* model_copies/batch_{batch}/L0_{log_L0}', shell=True)
 
-	vec_env = DummyVecEnv([make_env(batch_n=(first_batch_n + floor(i/3)), p=5, L0=L0_list[i%3]) for i in range(24)])
+	vec_env = DummyVecEnv([make_env(batch_n=(first_batch_n + floor(i/3)), run_n=run_n, p=5, L0=L0_list[i%3]) for i in range(24)])
 	vec_env = VecMonitor(vec_env, filename="./monitor_logs")
 
 	# Load stable baselines rl agent

@@ -39,7 +39,7 @@ def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
         y: The response vector.
         b: The true vector of regression coefficients.
     """
-    # Create n_th Epoch sub-directory
+    # Create n_th batch sub-directory
     if p == 5:
         subprocess.run(f'mkdir ~/thesis/synthetic_data/mini/batch_{batch_n}', shell=True)
     else: 

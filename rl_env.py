@@ -482,10 +482,9 @@ class rl_env(gym.Env):
 		    	np.save(f'model_records/run_{self.run_n}/{file_name}', search_model_records)
 		    
 		    info = self.get_info()
-		    # file_name = f'ep_res_records/batch_{self.batch_n}/{data_info}.pkl' 
-		    # Drop this if tensor Board works
-		    # with open(file_name, 'wb') as f:
-		        # pickle.dump(info, f)
+		    file_name = f'ep_res_records/run_{self.run_n}/{data_info}.pkl' 
+		    with open(file_name, 'wb') as f:
+		        pickle.dump(info, f)
 
 		    ### Gather return values
 		    done = True
