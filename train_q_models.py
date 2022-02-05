@@ -12,6 +12,8 @@ import tensorflow as tf
 # <run_n> is passed to this script from the batch script (or command line) call 
 # of 'python run_rl.py <run_n>'.
 
+TODO: change ep_res_records to .npy files of seed, L0, support
+
 run_n = int(sys.argv[1])
 
 # Update parameters of Branch Model
