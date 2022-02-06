@@ -14,9 +14,6 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from typing import Callable
 from make_env import make_env
 from stable_baselines3.common.vec_env import VecMonitor
-from math import floor
-
-# TODO: compare pred and obs support
 
 if __name__ ==  "__main__":
 	run_n = int(sys.argv[1]) # passed from command line when using and array job
@@ -45,10 +42,10 @@ if __name__ ==  "__main__":
 			# Make copies of q-models
 			subprocess.run(f'cp -r models/* model_copies/batch_{batch}/L0_{log_L0}', shell=True)
 
-	vec_env = DummyVecEnv([make_env(batch_n=(first_batch_n + floor(i/3)), run_n=run_n, p=5, L0=L0_list[i%3]) for i in range(24)])
+	vec_env = DummyVecEnv([make_env(batch_n=(first_batch_n + int(i/3)), run_n=run_n, p=5, L0=L0_list[i%3]) for i in range(24)])
 	vec_env = VecMonitor(vec_env, filename="./monitor_logs")
 
 	# Load stable baselines rl agent
-	model = A2C.load("sb_models/a2c_mini", vec_env)
-	model.learn(total_timesteps=50000, log_interval=1000, tb_log_name=f'run_{run_n}')
+	model = A2C.load("sb_models/a2c_mini", vec_env, tensorboard_log='./tb_logs/sb')
+	model.learn(total_timesteps=50000, log_interval=100, tb_log_name=f'run_{run_n}', reset_num_timesteps=False)
 	model.save("sb_models/a2c_mini")

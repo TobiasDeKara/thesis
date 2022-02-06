@@ -454,6 +454,7 @@ class rl_env(gym.Env):
 		    # Save records
 		    data_info = re.sub('x_', '', self.x_file_name)
 		    data_info = re.sub('.npy', '', data_info)
+		    seed = re.sub('gen_syn_n3_pmini_supp1_seed', '', data_info)
 		    log_L0 = -int(np.log10(self.L0))
 		    data_info = data_info + 'L0_' +  str(log_L0)
 		    
@@ -481,12 +482,11 @@ class rl_env(gym.Env):
 		    	file_name = f'search_model_rec_dim{search_record_dim}_{model_data_info}'
 		    	np.save(f'model_records/run_{self.run_n}/{file_name}', search_model_records)
 		    
-		    info = self.get_info()
-		    file_name = f'ep_res_records/run_{self.run_n}/{data_info}.pkl' 
-		    with open(file_name, 'wb') as f:
-		        pickle.dump(info, f)
+		    file_name = f'ep_res_records/run_{self.run_n}/ep_rec_{data_info}.npy' 
+		    np.save(file_name, np.array([seed, self.L0, self.curr_best_int_support]))
 
 		    ### Gather return values
+		    info = self.get_info()
 		    done = True
 		    observation = np.zeros((65))
 		    reward = frac_change_in_opt_gap

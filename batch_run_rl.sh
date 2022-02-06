@@ -9,7 +9,7 @@
 # --- Start of slurm commands -----------
 
 # Request an hour of runtime:
-#SBATCH --time=6:00:00
+#SBATCH --time=12:00:00
 
 ##SBATCH -p debug
 

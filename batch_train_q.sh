@@ -6,7 +6,10 @@
 # 2,000 epochs, of run_0 data, for branch model, 2:50:00, 2G, with histograms
 # 2,000 epochs, of run_0 data, for search model, 28 min, 2G, no histograms
 
-#SBATCH --time=4:00:00
+# 2,000 epochs, of run_1 data, for branch model, 	2G, no histograms
+# 2,000 epochs, of run_1 data, for search model, 45 min, 2G, no histograms
+
+#SBATCH --time=1:30:00
 #SBATCH --mem=2G 
 
 # Specify a job name:
