@@ -104,7 +104,6 @@ class rl_env(gym.Env):
 		self.step_counter = 0
 		self.x = None
 		self.y = None
-		self.b = None
 		self.cov = None
 		self.curr_best_int_primal = math.inf
 		self.curr_best_int_beta = None
@@ -129,7 +128,6 @@ class rl_env(gym.Env):
 		self.step_counter = 0
 		self.x = None
 		self.y = None
-		self.b = None
 		self.cov = None
 		self.curr_best_int_primal = math.inf
 		self.curr_best_int_beta = None
@@ -148,11 +146,9 @@ class rl_env(gym.Env):
 		self.x_file_name = x_file_name
 	
 		y_file_name = x_file_name.replace('x', 'y')
-		b_file_name = x_file_name.replace('x', 'b')
 		self.x = np.load(f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{x_file_name}')
 		self.y = np.load(f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{y_file_name}')
 		self.y = self.y.reshape(1000)
-		self.b = np.load(f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{b_file_name}')
 		
 		### Initialize root node
 		xi_norm =  np.linalg.norm(self.x, axis=0) ** 2
@@ -409,11 +405,31 @@ class rl_env(gym.Env):
 		    total_n_steps = action.step_number
 		    total_n_branch = action.n_branch
 		    total_n_search = action.n_search
+
+		    # Compare model support to true support => ep_res_record
+		    seed_support_array = \
+		    np.load(f'synthetic_data/{self.p_sub_dir}/seed_support_array_run_{self.run_n}.npy')
+		    seed = re.search('(?<=seed)[0-9]*', self.x_file_name)[0]
+		    seed = int(seed)
+		    true_support = seed_support_array[np.where(seed_support_array[:,0]==seed),1:].reshape(-1)
+		    len_model_support = len(self.curr_best_int_support)
+		    sum_true_sup_in_mod_sup = 0
+		    for x_i in true_support:
+		        if x_i in self.curr_best_int_support:
+		           sum_true_sup_in_mod_sup += 1
+		    frac_true_sup_in_mod_sup = sum_true_sup_in_mod_sup / true_support.shape[0]
+		    ep_res_record = np.array([seed, self.L0, len_model_support, frac_true_sup_in_mod_sup])
+		    data_info = re.sub('x_', '', self.x_file_name)
+		    data_info = re.sub('.npy', '', data_info)
+		    log_L0 = -int(np.log10(self.L0))
+		    data_info = data_info + 'L0_' +  str(log_L0)
 		    
+		    np.save(f'./ep_res_records/run_{self.run_n}/ep_res_rec_{data_info}', ep_res_record)
+
+		    # Get records of most recent action taken
 		    branch_action_records, search_action_records = [], []
 		    branch_model_records, search_model_records = [], []
 		    
-		    # Get records of most recent action taken
 		    action_record = np.concatenate([action.static_stats, \
 		        action.specific_stats])
 		    action_record = np.append(action_record, action.frac_change_in_opt_gap)
@@ -457,13 +473,7 @@ class rl_env(gym.Env):
 		    		search_action_records.append(action_record)
 		    		search_model_records.append(model_record)
 		    		
-		    # Save records
-		    data_info = re.sub('x_', '', self.x_file_name)
-		    data_info = re.sub('.npy', '', data_info)
-		    seed = re.sub('gen_syn_n3_pmini_supp1_seed', '', data_info)
-		    log_L0 = -int(np.log10(self.L0))
-		    data_info = data_info + 'L0_' +  str(log_L0)
-		    
+		    # Save action records
 		    if branch_action_records:
 		    	branch_action_records = np.vstack(branch_action_records)
 		    	branch_record_dim = branch_action_records.shape[1]
@@ -472,7 +482,7 @@ class rl_env(gym.Env):
 
 		    	branch_model_records = np.vstack(branch_model_records)
 		    	branch_record_dim = branch_model_records.shape[1]
-		    	model_data_info =  f'{data_info}_{self.branch_model_name}_b{self.batch_n}'
+		    	model_data_info =  f'{data_info}_{self.branch_model_name}'
 		    	file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}'
 		    	np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
 		    	
@@ -484,12 +494,11 @@ class rl_env(gym.Env):
 		    	
 		    	search_model_records = np.vstack(search_model_records)
 		    	search_record_dim = search_model_records.shape[1]
-		    	model_data_info =  f'{data_info}_{self.search_model_name}_b{self.batch_n}'
+		    	model_data_info =  f'{data_info}_{self.search_model_name}'
 		    	file_name = f'search_model_rec_dim{search_record_dim}_{model_data_info}'
 		    	np.save(f'model_records/run_{self.run_n}/{file_name}', search_model_records)
-		    
-		    file_name = f'ep_res_records/run_{self.run_n}/ep_rec_{data_info}.npy' 
-		    np.save(file_name, np.array([seed, self.L0, self.curr_best_int_support]))
+
+		    #### End Gather and Save Records #######
 
 		    ### Gather return values
 		    info = self.get_info()

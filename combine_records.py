@@ -5,10 +5,7 @@ import re
 
 run_n = sys.argv[1]
 
-# TODO: change ep_res_recs to include support size, and % of true support included by loading b info,
-# and change b info to a making a numpy array in gen_syn_data
-
-for i in range(3): # TODO: change range to 4 after changing ep_res_records
+for i in range(4):
 	if i == 0: # branch
 		in_dir = f'./action_records/run_{run_n}'
 		record_list = [f for f in os.listdir(in_dir) if re.match('branch*', f)]
@@ -20,19 +17,19 @@ for i in range(3): # TODO: change range to 4 after changing ep_res_records
 		record_list = [f for f in os.listdir(in_dir) if re.match('search*', f)]
 		out_file_name = 'search_rec_comb.npy'
 	
-	elif i ==2: # model records
+	elif i == 2: # model records
 		in_dir = f'./model_records/run_{run_n}'
 		record_list = [f for f in os.listdir(in_dir)]
 		out_dir = f'./combined_model_records/run_{run_n}'
 		os.makedirs(out_dir, exist_ok=True)
 		out_file_name = 'model_rec_comb.npy'		
 
-	else: # episode result records
-		record_list = [f for f in os.listdir(f'./ep_res_records/run_{run_n}')]
+	elif i == 3: # episode result records
 		in_dir = f'./ep_res_records/run_{run_n}'
+		record_list = [f for f in os.listdir(in_dir)]
 		out_dir = f'./combined_ep_res_records/run_{run_n}'
 		os.makedirs(out_dir, exist_ok=True)
-		out_file_name = 'branch_rec_comb.npy'
+		out_file_name = 'ep_res_rec_comb.npy'
 
 	array_list = []
 	for file_name in record_list:
