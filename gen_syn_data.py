@@ -8,15 +8,16 @@
 # Variable settings: 
 # Bertsimas et al.  use: 
 # supp_size in {5,10}, rho in {0.5, 0.8, 0.9}?
-# Hazimeh et al, us n = 10^3, p = {10^3, 10^4, 10^5, 10^6}, snr = 5
+# Hazimeh et al, use n = 10^3, p = {10^3, 10^4, 10^5, 10^6}, snr = 5
 
 import sys
 import numpy as np
 from numpy.random import multivariate_normal, normal
 import os
 import subprocess
+import multiprocessing
     
-def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
+def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
 	 run_n=int(sys.argv[1]), first_batch_n=int(sys.argv[1])*96):
     """Generate a synthetic regression dataset: y, x, and b.
     The data matrix x is sampled from a multivariate gaussian with exponential 
@@ -41,20 +42,21 @@ def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
     """
     # Create n_th batch sub-directory
     seed_support_list = []
+    seeds = np.random.choice(10**8, 96*n_mat, replace=False)
     for batch_n in range(first_batch_n, first_batch_n+96):
         if p == 5:
             subprocess.run(f'mkdir ~/thesis/synthetic_data/mini/batch_{batch_n}', shell=True)
         else: 
             subprocess.run(f'mkdir ~/thesis/synthetic_data/p{int(np.log10(p))}/batch_{batch_n}', shell=True)
 
-        for _ in range(n_mat):
-            seed = int(10**8 * np.random.random_sample())
+        for i in range(n_mat):
+            seed = seeds[(batch_n-first_batch_n)*n_mat + i]
             np.random.seed(seed)
      
             # Make b
             b = np.zeros((p,1))
-            support = np.random.choice(range(p), size=supp_size)    
-            b[support] = np.ones(supp_size)
+            support = np.random.choice(range(p), size=supp_size, replace=False)    
+            b[support] = np.ones((supp_size,1))
 
             seed_support = np.concatenate([np.array(seed, ndmin=1), np.array(support, ndmin=1)])
             seed_support_list.append(seed_support)
@@ -102,7 +104,7 @@ def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
     seed_support_array = np.vstack(seed_support_list)
     np.save(f'{path}/seed_support_array_run_{run_n}', seed_support_array)
 
-make_syn_data(n_mat=1000, p=5, supp_size=1)
+make_syn_data(p=1000, supp_size=10)
 
 # For Testing
 # import subprocess
