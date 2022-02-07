@@ -9,11 +9,11 @@
 # 2,000 epochs, of run_1 data, for branch model, 	2G, no histograms
 # 2,000 epochs, of run_1 data, for search model, 45 min, 2G, no histograms
 
-#SBATCH --time=1:30:00
+#SBATCH --time=45:00
 #SBATCH --mem=2G 
 
 # Specify a job name:
-#SBATCH -J train_q_search
+#SBATCH -J train_qb_r0
 
 # Use '%A' for array-job ID, '%J' for job ID and '%a' for task ID
 #SBATCH -e ./sbatch_errors/%J.err

@@ -378,6 +378,12 @@ class rl_env(gym.Env):
 		prev_opt_gap = self.optimality_gap
 		self.optimality_gap = (self.curr_best_int_primal - self.lower_bound) / self.lower_bound
 		frac_change_in_opt_gap = (prev_opt_gap - self.optimality_gap) / self.initial_optimality_gap
+		# The following two lines are for finite precision issues.  When the 
+		# support of the primal solution to the relaxation of the root node is 
+		# the same as the support of the optimal integer solution the initial 
+		# optimality gap can be small relative to the precision of the calculations. 
+		frac_change_in_opt_gap = max(frac_change_in_opt_gap, 0)
+		frac_change_in_opt_gap = min(frac_change_in_opt_gap, 1)
 		
 		### Attach stats on action taken <==> Update self.current_action
 		if branch_or_search == 'branch':
