@@ -14,8 +14,8 @@ import tensorflow as tf
 
 run_n = int(sys.argv[1])
 
-train_branch = False
-train_search = True
+train_branch = True
+train_search = False
 
 # Update parameters of Branch Model
 if train_branch == True:
