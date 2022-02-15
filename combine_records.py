@@ -5,7 +5,7 @@ import re
 
 run_n = sys.argv[1]
 
-for i in range(4):
+for i in range(5):
 	if i == 0: # branch
 		in_dir = f'./action_records/run_{run_n}'
 		record_list = [f for f in os.listdir(in_dir) if re.match('branch*', f)]
@@ -30,6 +30,13 @@ for i in range(4):
 		out_dir = f'./combined_ep_res_records/run_{run_n}'
 		os.makedirs(out_dir, exist_ok=True)
 		out_file_name = 'ep_res_rec_comb.npy'
+
+	elif i == 4: # seed_support records
+		in_dir = f'./synthetic_data/p3/seed_support_records_run_{run}'
+		record_list = [f for f in os.listdir(in_dir)]
+		out_dir = f'./combined_seed_support_records/run_{run_n}'
+		os.makedirs(out_dir, exist_ok=True)
+		out_file_name = 'seed_support_rec_comb.npy'
 
 	array_list = []
 	for file_name in record_list:
