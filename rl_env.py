@@ -11,7 +11,7 @@ import subprocess
 import numpy as np
 from copy import copy
 from l0bnb.node import Node
-from l0bnb import BNBTree
+# from l0bnb import BNBTree
 from random import choice
 from functions import *
 from stat_functions import *
@@ -19,7 +19,7 @@ import math
 from action_taken import action_taken
 from operator import attrgetter
 import re
-import pickle
+# import pickle
 
 
 # Note on optimality gap:
@@ -51,7 +51,6 @@ class rl_node(Node):
 	def __init__(self, parent, zlb: list, zub: list, x, y, xi_norm):
 		super().__init__(parent, zlb, zub, x=x, y=y, xi_norm=xi_norm)
 		self.searched = 0
-
 
 class rl_env(gym.Env):
 	def __init__(self, L0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, run_n=0, batch_n=0, \
@@ -141,7 +140,9 @@ class rl_env(gym.Env):
                         self.x_file_list = subprocess.run( \
                         f"cd synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}; ls x* -1U", \
                         capture_output=True, text=True, shell=True).stdout.splitlines()
-                    x_file_name = self.x_file_list.pop(0)
+
+                    rand_ind = np.random.choice(len(self.x_file_list))
+                    x_file_name = self.x_file_list.pop(rand_ind)
 
 		self.x_file_name = x_file_name
 	
