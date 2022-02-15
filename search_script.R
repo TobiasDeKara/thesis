@@ -28,8 +28,11 @@ gamma <- lambdas[[2,1]]
 len_zub <- read_csv(paste0(path, 'len_zub.csv'), col_names=FALSE, col_types='i', show_col_types = FALSE)
 len_zub <- len_zub[[1,1]]
 
-fit <- L0Learn.fit(x_sub, y, algorithm="CDPSI", penalty='L0L2', intercept=FALSE,
+fit <- L0Learn.fit(x_sub, y, algorithm="CDPSI", penalty='L0L2', intercept=FALSE, maxSuppSize=200,
 	nGamma=1, gammaMin=gamma, gammaMax=gamma, lambdaGrid=list(lambda), excludeFirstK=len_zub)
+# The recommended maxSuppSize is 0.05*min(n,p).  For more info see:
+# https://github.com/hazimehh/L0Learn/blob/master/R/fit.R#L34
+
 betas_unsorted <- coef(fit, lambda, gamma)
 index_of_support_in_x_sub <- betas_unsorted@i
 index_of_support_in_p_unsorted <- col_names[index_of_support_in_x_sub]
