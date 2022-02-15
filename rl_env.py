@@ -115,6 +115,7 @@ class rl_env(gym.Env):
 		self.lower_bound_node_key = None # The key of the node with the lowest primal value
 		self.initial_optimality_gap = None
 		self.optimality_gap = None
+		self.record_batch_counter = 0
 
 	def reset(self, x_file_name=None):
 		"""
@@ -134,6 +135,7 @@ class rl_env(gym.Env):
 		self.state = dict() 
 		# self.state holds: static_stats, branch_option_stats, branch_option_keys, branch_q_hat,
 		# search_option_stats, search_option_key, search_q_hat
+		self.record_batch_counter = 0
 
 		if x_file_name is None:
                     if len(self.x_file_list) == 0:
@@ -397,8 +399,59 @@ class rl_env(gym.Env):
 			    self.state['static_stats'], specific_stats, q_hat, self.step_counter, \
 			    self.branch_counter, self.search_counter, \
 			    frac_change_in_opt_gap)
-			    
 
+		if self.step_counter % 100 == 0:
+		    # Get records of most recent action taken
+		    
+		    action = self.current_action
+		    total_n_steps = action.step_number
+		    total_n_branch = action.n_branch
+		    total_n_search = action.n_search
+
+
+		    branch_action_records, search_action_records = [], []
+
+		    action_record = np.concatenate([action.static_stats, \
+		        action.specific_stats])
+		    action_record = np.append(action_record, action.frac_change_in_opt_gap)
+		        
+		    if action.branch_or_search == 'branch':
+		    	branch_action_records.append(action_record)
+		    else:
+		    	search_action_records.append(action_record)
+    
+		    # Get action records of previous actions taken
+		    for _ in range(99):
+		    	action = action.prev_action
+		    	action_record = np.concatenate([action.static_stats, \
+		    	action.specific_stats])
+		    	action_record = np.append(action_record, action.frac_change_in_opt_gap)
+		            
+		    	if action.branch_or_search == 'branch':
+		    		branch_action_records.append(action_record)
+		    	else:
+		    		search_action_records.append(action_record)
+
+		    data_info = re.sub('x_', '', self.x_file_name)
+		    data_info = re.sub('.npy', '', data_info)
+		    log_L0 = -int(np.log10(self.L0))
+		    data_info = data_info + 'L0_' +  str(log_L0)
+
+		    # Save action records
+		    if branch_action_records:
+		    	branch_action_records = np.vstack(branch_action_records)
+		    	branch_record_dim = branch_action_records.shape[1]
+		    	file_name = \
+		        f'branch_action_rec_dim{branch_record_dim}_{data_info}_{self.record_batch_counter}'
+		    	np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
+
+		    if search_action_records:
+		    	search_action_records = np.vstack(search_action_records)
+		    	search_record_dim = search_action_records.shape[1]
+		    	file_name = \
+		        f'search_action_rec_dim{search_record_dim}_{data_info}_{self.record_batch_counter}'
+		    	np.save(f'action_records/run_{self.run_n}/{file_name}', search_action_records)
+		    	
 		### If we're done ...
 		if len(self.active_nodes) == 0:
 		    ### Gather and save records
@@ -427,78 +480,78 @@ class rl_env(gym.Env):
 		    
 		    np.save(f'./ep_res_records/run_{self.run_n}/ep_res_rec_{data_info}', ep_res_record)
 
-		    # Get records of most recent action taken
-		    branch_action_records, search_action_records = [], []
-		    branch_model_records, search_model_records = [], []
-		    
-		    action_record = np.concatenate([action.static_stats, \
-		        action.specific_stats])
-		    action_record = np.append(action_record, action.frac_change_in_opt_gap)
-		        
-		    model_record = np.array([
-		        action.step_number, action.n_branch, action.n_search, \
-		        (total_n_steps - action.step_number), \
-		        (total_n_branch - action.n_branch), \
-		        (total_n_search - action.n_search), \
-		        action.q_hat[0], \
-		        action.frac_change_in_opt_gap, \
-		        self.run_n], dtype = float)
-		    
-		    if action.branch_or_search == 'branch':
-		    	branch_action_records.append(action_record)
-		    	branch_model_records.append(model_record)
-		    else:
-		    	search_action_records.append(action_record)
-		    	search_model_records.append(model_record)
-    
-		    # Get action records of previous actions taken
-		    while action.prev_action is not None:
-		    	action = action.prev_action
-		    	action_record = np.concatenate([action.static_stats, \
-		    	action.specific_stats])
-		    	action_record = np.append(action_record, action.frac_change_in_opt_gap)
-		            
-		    	model_record = np.array([
-		    	    action.step_number, action.n_branch, action.n_search, \
-		    	    total_n_steps - action.step_number, \
-		    	    total_n_branch - action.n_branch, \
-		    	    total_n_search - action.n_search, \
-		    	    action.q_hat[0], \
-		            action.frac_change_in_opt_gap, \
-		            self.batch_n], dtype = float)
-		      
-		    	if action.branch_or_search == 'branch':
-		    		branch_action_records.append(action_record)
-		    		branch_model_records.append(model_record)
-		    	else:
-		    		search_action_records.append(action_record)
-		    		search_model_records.append(model_record)
-		    		
-		    # Save action records
-		    if branch_action_records:
-		    	branch_action_records = np.vstack(branch_action_records)
-		    	branch_record_dim = branch_action_records.shape[1]
-		    	file_name = f'branch_action_rec_dim{branch_record_dim}_{data_info}'
-		    	np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
-
-		    	branch_model_records = np.vstack(branch_model_records)
-		    	branch_record_dim = branch_model_records.shape[1]
-		    	model_data_info =  f'{data_info}_{self.branch_model_name}'
-		    	file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}'
-		    	np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
-		    	
-		    if search_action_records:
-		    	search_action_records = np.vstack(search_action_records)
-		    	search_record_dim = search_action_records.shape[1]
-		    	file_name = f'search_action_rec_dim{search_record_dim}_{data_info}'
-		    	np.save(f'action_records/run_{self.run_n}/{file_name}', search_action_records)
-		    	
-		    	search_model_records = np.vstack(search_model_records)
-		    	search_record_dim = search_model_records.shape[1]
-		    	model_data_info =  f'{data_info}_{self.search_model_name}'
-		    	file_name = f'search_model_rec_dim{search_record_dim}_{model_data_info}'
-		    	np.save(f'model_records/run_{self.run_n}/{file_name}', search_model_records)
-
+#		    # Get records of most recent action taken
+#		    branch_action_records, search_action_records = [], []
+#		    branch_model_records, search_model_records = [], []
+#		    
+#		    action_record = np.concatenate([action.static_stats, \
+#		        action.specific_stats])
+#		    action_record = np.append(action_record, action.frac_change_in_opt_gap)
+#		        
+#		    model_record = np.array([
+#		        action.step_number, action.n_branch, action.n_search, \
+#		        (total_n_steps - action.step_number), \
+#		        (total_n_branch - action.n_branch), \
+#		        (total_n_search - action.n_search), \
+#		        action.q_hat[0], \
+#		        action.frac_change_in_opt_gap, \
+#		        self.run_n], dtype = float)
+#		    
+#		    if action.branch_or_search == 'branch':
+#		    	branch_action_records.append(action_record)
+#		    	branch_model_records.append(model_record)
+#		    else:
+#		    	search_action_records.append(action_record)
+#		    	search_model_records.append(model_record)
+#    
+#		    # Get action records of previous actions taken
+#		    while action.prev_action is not None:
+#		    	action = action.prev_action
+#		    	action_record = np.concatenate([action.static_stats, \
+#		    	action.specific_stats])
+#		    	action_record = np.append(action_record, action.frac_change_in_opt_gap)
+#		            
+#		    	model_record = np.array([
+#		    	    action.step_number, action.n_branch, action.n_search, \
+#		    	    total_n_steps - action.step_number, \
+#		    	    total_n_branch - action.n_branch, \
+#		    	    total_n_search - action.n_search, \
+#		    	    action.q_hat[0], \
+#		            action.frac_change_in_opt_gap, \
+#		            self.batch_n], dtype = float)
+#		      
+#		    	if action.branch_or_search == 'branch':
+#		    		branch_action_records.append(action_record)
+#		    		branch_model_records.append(model_record)
+#		    	else:
+#		    		search_action_records.append(action_record)
+#		    		search_model_records.append(model_record)
+#		    		
+#		    # Save action records
+#		    if branch_action_records:
+#		    	branch_action_records = np.vstack(branch_action_records)
+#		    	branch_record_dim = branch_action_records.shape[1]
+#		    	file_name = f'branch_action_rec_dim{branch_record_dim}_{data_info}'
+#		    	np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
+#
+#		    	branch_model_records = np.vstack(branch_model_records)
+#		    	branch_record_dim = branch_model_records.shape[1]
+#		    	model_data_info =  f'{data_info}_{self.branch_model_name}'
+#		    	file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}'
+#		    	np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
+#		    	
+#		    if search_action_records:
+#		    	search_action_records = np.vstack(search_action_records)
+#		    	search_record_dim = search_action_records.shape[1]
+#		    	file_name = f'search_action_rec_dim{search_record_dim}_{data_info}'
+#		    	np.save(f'action_records/run_{self.run_n}/{file_name}', search_action_records)
+#		    	
+#		    	search_model_records = np.vstack(search_model_records)
+#		    	search_record_dim = search_model_records.shape[1]
+#		    	model_data_info =  f'{data_info}_{self.search_model_name}'
+#		    	file_name = f'search_model_rec_dim{search_record_dim}_{model_data_info}'
+#		    	np.save(f'model_records/run_{self.run_n}/{file_name}', search_model_records)
+#
 		    #### End Gather and Save Records #######
 
 		    ### Gather return values
