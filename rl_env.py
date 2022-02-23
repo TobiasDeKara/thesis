@@ -54,8 +54,8 @@ class rl_node(Node):
 
 class rl_env(gym.Env):
 	def __init__(self, L0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, run_n=0, batch_n=0, \
-	branch_model_name='branch_model_in61_lay2', \
-	search_model_name='search_model_in53_lay2'):
+	branch_model_name='branch_model_in61_lay3_rew_binary', \
+	search_model_name='search_model_in53_lay3_rew_binary'):
 		super(rl_env, self).__init__()
 		""" Note: 'greedy_epsilon' is the probability of choosing random exploration, 
 		for testing performance after training, set greedy_epsilon to zero."""
@@ -81,15 +81,13 @@ class rl_env(gym.Env):
 
 		# For mini data (p=5)
 		if self.p==5:
-			self.p_sub_dir = 'mini' 
+			self.p_sub_dir = 'pmini' 
 		# For all other data (p in {10**3, 10**4, 10**5, 10**6})
 		else:
                	    self.p_sub_dir = f'p{int(np.log10(self.p))}'
 
-		self.x_file_list = subprocess.run( \
-	    	f"cd synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}; ls x* -1U", \
-	    	capture_output=True, text=True, shell=True).stdout.splitlines()
-
+		data_dir = f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}'
+		self.x_file_list = [f for f in os.listdir(data_dir) if re.match('x', f)]
 		self.int_tol = 10**-4
 		# m=5 works well for our synthetic data, but will need to adjusted for other data sets.
 		self.m = m
@@ -139,9 +137,8 @@ class rl_env(gym.Env):
 
 		if x_file_name is None:
                     if len(self.x_file_list) == 0:
-                        self.x_file_list = subprocess.run( \
-                        f"cd synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}; ls x* -1U", \
-                        capture_output=True, text=True, shell=True).stdout.splitlines()
+                        data_dir = f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}'
+                        self.x_file_list = [f for f in os.listdir(data_dir) if re.match('x', f)]
 
                     rand_ind = np.random.choice(len(self.x_file_list))
                     x_file_name = self.x_file_list.pop(rand_ind)
@@ -279,6 +276,7 @@ class rl_env(gym.Env):
 		    search_sol_primal = rss/2 + self.L0*search_support.shape[0] + \
 		        self.l2*np.dot(search_betas, search_betas)
 
+
 		    # Check if new solution is best so far
 		    if search_sol_primal < self.curr_best_int_primal:
 		    	# Update current best integer solution
@@ -400,37 +398,44 @@ class rl_env(gym.Env):
 			    self.branch_counter, self.search_counter, \
 			    frac_change_in_opt_gap)
 
-		if self.step_counter % 100 == 0:
+		# Write to file action and model stats from last 10 actions
+		if self.step_counter % 10 == 0:
 		    # Get records of most recent action taken
-		    
 		    action = self.current_action
-		    total_n_steps = action.step_number
-		    total_n_branch = action.n_branch
-		    total_n_search = action.n_search
-
 
 		    branch_action_records, search_action_records = [], []
+		    branch_model_records, search_model_records = [], []
 
 		    action_record = np.concatenate([action.static_stats, \
 		        action.specific_stats])
 		    action_record = np.append(action_record, action.frac_change_in_opt_gap)
-		        
+
+		    model_record = get_model_record(self.run_n, action)
+
 		    if action.branch_or_search == 'branch':
 		    	branch_action_records.append(action_record)
+		    	branch_model_records.append(model_record)
 		    else:
 		    	search_action_records.append(action_record)
-    
+		    	search_model_records.append(model_record)
+
 		    # Get action records of previous actions taken
-		    for _ in range(99):
-		    	action = action.prev_action
+		    for _ in range(9):
+		    	prev_action = action.prev_action
+		    	del action
+		    	action = prev_action
 		    	action_record = np.concatenate([action.static_stats, \
 		    	action.specific_stats])
 		    	action_record = np.append(action_record, action.frac_change_in_opt_gap)
+
+		    	model_record = get_model_record(self.run_n, action)
 		            
 		    	if action.branch_or_search == 'branch':
 		    		branch_action_records.append(action_record)
+		    		branch_model_records.append(model_record)
 		    	else:
 		    		search_action_records.append(action_record)
+		    		search_model_records.append(model_record)
 
 		    data_info = re.sub('x_', '', self.x_file_name)
 		    data_info = re.sub('.npy', '', data_info)
@@ -444,6 +449,14 @@ class rl_env(gym.Env):
 		    	file_name = \
 		        f'branch_action_rec_dim{branch_record_dim}_{data_info}_{self.record_batch_counter}'
 		    	np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
+		    	del branch_action_records
+
+		    	branch_model_records = np.vstack(branch_model_records)
+		    	branch_record_dim = branch_model_records.shape[1]
+		    	model_data_info =  f'{data_info}_{self.branch_model_name}'
+		    	file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}'
+		    	np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
+		    	del branch_model_records
 
 		    if search_action_records:
 		    	search_action_records = np.vstack(search_action_records)
@@ -451,7 +464,17 @@ class rl_env(gym.Env):
 		    	file_name = \
 		        f'search_action_rec_dim{search_record_dim}_{data_info}_{self.record_batch_counter}'
 		    	np.save(f'action_records/run_{self.run_n}/{file_name}', search_action_records)
-		    	
+		    	del search_action_records
+
+		    	search_model_records = np.vstack(search_model_records)
+		    	search_record_dim = search_model_records.shape[1]
+		    	model_data_info =  f'{data_info}_{self.search_model_name}'
+		    	file_name = f'search_model_rec_dim{search_record_dim}_{model_data_info}'
+		    	np.save(f'model_records/run_{self.run_n}/{file_name}', search_model_records)
+		    	del search_model_records
+
+		    self.record_batch_counter += 1
+
 		### If we're done ...
 		if len(self.active_nodes) == 0:
 		    ### Gather and save records
@@ -462,7 +485,7 @@ class rl_env(gym.Env):
 
 		    # Compare model support to true support => ep_res_record
 		    seed_support_array = \
-		    np.load(f'synthetic_data/{self.p_sub_dir}/seed_support_array_run_{self.run_n}.npy')
+		    np.load(f'combined_seed_support_records/seed_support_rec_comb.npy')
 		    seed = re.search('(?<=seed)[0-9]*', self.x_file_name)[0]
 		    seed = int(seed)
 		    true_support = seed_support_array[np.where(seed_support_array[:,0]==seed),1:].reshape(-1)
@@ -480,85 +503,71 @@ class rl_env(gym.Env):
 		    
 		    np.save(f'./ep_res_records/run_{self.run_n}/ep_res_rec_{data_info}', ep_res_record)
 
-#		    # Get records of most recent action taken
-#		    branch_action_records, search_action_records = [], []
-#		    branch_model_records, search_model_records = [], []
-#		    
-#		    action_record = np.concatenate([action.static_stats, \
-#		        action.specific_stats])
-#		    action_record = np.append(action_record, action.frac_change_in_opt_gap)
-#		        
-#		    model_record = np.array([
-#		        action.step_number, action.n_branch, action.n_search, \
-#		        (total_n_steps - action.step_number), \
-#		        (total_n_branch - action.n_branch), \
-#		        (total_n_search - action.n_search), \
-#		        action.q_hat[0], \
-#		        action.frac_change_in_opt_gap, \
-#		        self.run_n], dtype = float)
-#		    
-#		    if action.branch_or_search == 'branch':
-#		    	branch_action_records.append(action_record)
-#		    	branch_model_records.append(model_record)
-#		    else:
-#		    	search_action_records.append(action_record)
-#		    	search_model_records.append(model_record)
-#    
-#		    # Get action records of previous actions taken
-#		    while action.prev_action is not None:
-#		    	action = action.prev_action
-#		    	action_record = np.concatenate([action.static_stats, \
-#		    	action.specific_stats])
-#		    	action_record = np.append(action_record, action.frac_change_in_opt_gap)
-#		            
-#		    	model_record = np.array([
-#		    	    action.step_number, action.n_branch, action.n_search, \
-#		    	    total_n_steps - action.step_number, \
-#		    	    total_n_branch - action.n_branch, \
-#		    	    total_n_search - action.n_search, \
-#		    	    action.q_hat[0], \
-#		            action.frac_change_in_opt_gap, \
-#		            self.batch_n], dtype = float)
-#		      
-#		    	if action.branch_or_search == 'branch':
-#		    		branch_action_records.append(action_record)
-#		    		branch_model_records.append(model_record)
-#		    	else:
-#		    		search_action_records.append(action_record)
-#		    		search_model_records.append(model_record)
-#		    		
-#		    # Save action records
-#		    if branch_action_records:
-#		    	branch_action_records = np.vstack(branch_action_records)
-#		    	branch_record_dim = branch_action_records.shape[1]
-#		    	file_name = f'branch_action_rec_dim{branch_record_dim}_{data_info}'
-#		    	np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
-#
-#		    	branch_model_records = np.vstack(branch_model_records)
-#		    	branch_record_dim = branch_model_records.shape[1]
-#		    	model_data_info =  f'{data_info}_{self.branch_model_name}'
-#		    	file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}'
-#		    	np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
-#		    	
-#		    if search_action_records:
-#		    	search_action_records = np.vstack(search_action_records)
-#		    	search_record_dim = search_action_records.shape[1]
-#		    	file_name = f'search_action_rec_dim{search_record_dim}_{data_info}'
-#		    	np.save(f'action_records/run_{self.run_n}/{file_name}', search_action_records)
-#		    	
-#		    	search_model_records = np.vstack(search_model_records)
-#		    	search_record_dim = search_model_records.shape[1]
-#		    	model_data_info =  f'{data_info}_{self.search_model_name}'
-#		    	file_name = f'search_model_rec_dim{search_record_dim}_{model_data_info}'
-#		    	np.save(f'model_records/run_{self.run_n}/{file_name}', search_model_records)
-#
+		    # Get records of most recent action taken
+		    branch_action_records, search_action_records = [], []
+		    branch_model_records, search_model_records = [], []
+		    
+		    action_record = np.concatenate([action.static_stats, \
+		        action.specific_stats])
+		    action_record = np.append(action_record, action.frac_change_in_opt_gap)
+		        
+		    model_record = get_model_record(self.run_n, action)
+
+		    if action.branch_or_search == 'branch':
+		    	branch_action_records.append(action_record)
+		    	branch_model_records.append(model_record)
+		    else:
+		    	search_action_records.append(action_record)
+		    	search_model_records.append(model_record)
+    
+		    # Get action records of previous actions taken
+		    while action.prev_action is not None:
+		    	action = action.prev_action
+		    	action_record = np.concatenate([action.static_stats, \
+		    	action.specific_stats])
+		    	action_record = np.append(action_record, action.frac_change_in_opt_gap)
+		            
+		    	model_record = get_model_record(self.run_n, action)
+		      
+		    	if action.branch_or_search == 'branch':
+		    		branch_action_records.append(action_record)
+		    		branch_model_records.append(model_record)
+		    	else:
+		    		search_action_records.append(action_record)
+		    		search_model_records.append(model_record)
+		    		
+		    # Save action records
+		    if branch_action_records:
+		    	branch_action_records = np.vstack(branch_action_records)
+		    	branch_record_dim = branch_action_records.shape[1]
+		    	file_name = f'branch_action_rec_dim{branch_record_dim}_{data_info}'
+		    	np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
+
+		    	branch_model_records = np.vstack(branch_model_records)
+		    	branch_record_dim = branch_model_records.shape[1]
+		    	model_data_info =  f'{data_info}_{self.branch_model_name}'
+		    	file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}'
+		    	np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
+		    	
+		    if search_action_records:
+		    	search_action_records = np.vstack(search_action_records)
+		    	search_record_dim = search_action_records.shape[1]
+		    	file_name = f'search_action_rec_dim{search_record_dim}_{data_info}'
+		    	np.save(f'action_records/run_{self.run_n}/{file_name}', search_action_records)
+		    	
+		    	search_model_records = np.vstack(search_model_records)
+		    	search_record_dim = search_model_records.shape[1]
+		    	model_data_info =  f'{data_info}_{self.search_model_name}'
+		    	file_name = f'search_model_rec_dim{search_record_dim}_{model_data_info}'
+		    	np.save(f'model_records/run_{self.run_n}/{file_name}', search_model_records)
+
 		    #### End Gather and Save Records #######
 
 		    ### Gather return values
 		    info = self.get_info()
 		    done = True
 		    observation = np.zeros((65))
-		    reward = frac_change_in_opt_gap
+		    reward = int(frac_change_in_opt_gap > 0)
 	
 		    return(observation, reward, done, info)
 		### End of "If we're done" #########
@@ -611,7 +620,7 @@ class rl_env(gym.Env):
 		observation = np.concatenate([self.state['static_stats'], self.state['branch_option_stats'], \
 		    self.state['search_option_stats']])
 		done = False
-		reward = frac_change_in_opt_gap
+		reward = int(frac_change_in_opt_gap > 0)
 		# prin(reward=reward, prev_opt_gap = prev_opt_gap, og = self.optimality_gap, \
 		#    ub = self.curr_best_int_primal, lb=self.lower_bound)
 		info = self.get_info()

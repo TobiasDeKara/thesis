@@ -2,18 +2,11 @@
 
 # --- Start of slurm commands -----------
 
-# Run times:
-# 2,000 epochs, of run_0 data, for branch model, 2:50:00, 2G, with histograms
-# 2,000 epochs, of run_0 data, for search model, 28 min, 2G, no histograms
-
-# 2,000 epochs, of run_1 data, for branch model, 	2G, no histograms
-# 2,000 epochs, of run_1 data, for search model, 45 min, 2G, no histograms
-
-#SBATCH --time=6:00:00
+#SBATCH --time=1:00:00
 #SBATCH --mem=2G 
 
 # Specify a job name:
-#SBATCH -J qb_r1
+#SBATCH -J q_tr_p3
 
 # Use '%A' for array-job ID, '%J' for job ID and '%a' for task ID
 #SBATCH -e ./sbatch_errors/%J.err

@@ -15,25 +15,25 @@ def get_run_stats(run_n=0, validation=False):
     n_non_zero_pred = 0
 
     if i == 0: # branch
-      rec_file_name = f'./combined_model_records/run_{run_n}/branch_mod_rec_comb.npy'
+      rec_file_name = f'./combined_model_records/run_{run_n}/branch_model_rec_comb.npy'
     else: # search
-      rec_file_name = f'./combined_model_records/run_{run_n}/search_mod_rec_comb.npy'
+      rec_file_name = f'./combined_model_records/run_{run_n}/search_model_rec_comb.npy'
 
     model_rec = np.load(rec_file_name)
-    n_col = record.shape[1]
-    x, y = np.hsplit(branch_record, np.array([n_col-1]))
+    n_col = model_rec.shape[1]
+    x, y = np.hsplit(model_rec, np.array([n_col-1]))
 
     if validation:
       if i == 0: # branch
         model_name = 'branch_model_in61_lay2'
-        record = np.load(f'./combined_action_records/run_{run_n}/branch_rec_comb.npy')
+        model_rec = np.load(f'./combined_action_records/run_{run_n}/branch_rec_comb.npy')
       else: # search
         model_name = 'search_model_in53_lay2'
-        record = np.load(f'./combined_action_records/run_{run_n}/search_rec_comb.npy')
+        model_rec = np.load(f'./combined_action_records/run_{run_n}/search_rec_comb.npy')
 
 
-      q_hat = model_rec[:, model_rec.shape[1]-3]
-    change_in_opt_gap = model_rec[:, model_rec.shape[1]-2]
+    q_hat = model_rec[:, model_rec.shape[1]-2]
+    change_in_opt_gap = model_rec[:, model_rec.shape[1]-1]
     sum_sq = sum((q_hat - change_in_opt_gap)**2)
     n_obs = model_rec.shape[0]
     sum_obs = change_in_opt_gap.sum()

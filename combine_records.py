@@ -5,34 +5,40 @@ import re
 
 run_n = sys.argv[1]
 
-for i in range(5):
-	if i == 0: # branch
+for i in [0, 1, 2, 3, 4]:
+	if i == 0: # branch actions 
 		in_dir = f'./action_records/run_{run_n}'
-		record_list = [f for f in os.listdir(in_dir) if re.match('branch*', f)]
+		record_list = [f for f in os.listdir(in_dir) if re.match('branch', f)]
 		out_dir = f'./combined_action_records/run_{run_n}'
 		os.makedirs(out_dir, exist_ok=True)
 		out_file_name = 'branch_rec_comb.npy'
-	elif i == 1: # search
+	elif i == 1: # search actions
 		# 'in_dir' and 'out_dir' as above
-		record_list = [f for f in os.listdir(in_dir) if re.match('search*', f)]
+		record_list = [f for f in os.listdir(in_dir) if re.match('search', f)]
 		out_file_name = 'search_rec_comb.npy'
 	
-	elif i == 2: # model records
+	elif i == 2: # branch model records
 		in_dir = f'./model_records/run_{run_n}'
-		record_list = [f for f in os.listdir(in_dir)]
+		record_list = [f for f in os.listdir(in_dir) if re.match('branch', f)]
 		out_dir = f'./combined_model_records/run_{run_n}'
 		os.makedirs(out_dir, exist_ok=True)
-		out_file_name = 'model_rec_comb.npy'		
+		out_file_name = 'branch_model_rec_comb.npy'		
 
-	elif i == 3: # episode result records
+	elif i == 3: # search model records
+		in_dir = f'./model_records/run_{run_n}'
+		record_list = [f for f in os.listdir(in_dir) if re.match('search', f)]
+		out_dir = f'./combined_model_records/run_{run_n}'
+		out_file_name = 'search_model_rec_comb.npy'		
+
+	elif i == 4: # episode result records
 		in_dir = f'./ep_res_records/run_{run_n}'
 		record_list = [f for f in os.listdir(in_dir)]
 		out_dir = f'./combined_ep_res_records/run_{run_n}'
 		os.makedirs(out_dir, exist_ok=True)
 		out_file_name = 'ep_res_rec_comb.npy'
 
-	elif i == 4: # seed_support records
-		in_dir = f'./synthetic_data/p3/seed_support_records_run_{run}'
+	elif i == 5: # seed_support records
+		in_dir = f'./synthetic_data/p3/seed_support_records_run_{run_n}'
 		record_list = [f for f in os.listdir(in_dir)]
 		out_dir = f'./combined_seed_support_records/run_{run_n}'
 		os.makedirs(out_dir, exist_ok=True)
@@ -46,7 +52,8 @@ for i in range(5):
 		except ValueError as error:
 			print(error)
 			print(f'failed to open {file_name}')
-	
-	rec_comb = np.vstack(array_list)
 
-	np.save(f'{out_dir}/{out_file_name}', rec_comb)
+	if array_list:
+		rec_comb = np.vstack(array_list)
+
+		np.save(f'{out_dir}/{out_file_name}', rec_comb)

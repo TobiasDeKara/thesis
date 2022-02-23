@@ -11,9 +11,8 @@ library(L0Learn)
 library(readr)
 args = commandArgs(trailingOnly = TRUE)
 batch_n = args[1]
-# print(paste0('batch_n: ', batch_n))
 log_L0 = args[2]
-# print(paste0('log_L0: ', log_L0))
+
 path <- paste0('./param_for_search/batch_', batch_n, '/L0_', log_L0, '/')
 x_sub <- read_csv(paste0(path, 'x_sub_mat.csv'), col_names=TRUE, show_col_types = FALSE)
 col_names <- as.integer(names(x_sub)) # these are the indexes of the variables relative to p
@@ -28,7 +27,7 @@ gamma <- lambdas[[2,1]]
 len_zub <- read_csv(paste0(path, 'len_zub.csv'), col_names=FALSE, col_types='i', show_col_types = FALSE)
 len_zub <- len_zub[[1,1]]
 
-fit <- L0Learn.fit(x_sub, y, algorithm="CDPSI", penalty='L0L2', intercept=FALSE, maxSuppSize=200,
+fit <- L0Learn.fit(x_sub, y, algorithm="CDPSI", penalty='L0L2', intercept=FALSE, maxSuppSize=1000,
 	nGamma=1, gammaMin=gamma, gammaMax=gamma, lambdaGrid=list(lambda), excludeFirstK=len_zub)
 # The recommended maxSuppSize is 0.05*min(n,p).  For more info see:
 # https://github.com/hazimehh/L0Learn/blob/master/R/fit.R#L34

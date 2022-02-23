@@ -1,5 +1,4 @@
 import numpy as np
-from functions import prin
 import random
 
 def get_active_node_stats(active_nodes):

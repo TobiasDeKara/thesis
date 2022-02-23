@@ -85,15 +85,13 @@ def int_sol(node, p, int_tol=10**-4, m=5):
 				return(False)
 	return(True)
 
+
 	
-def prin(**kwargs):
-    for name, value in kwargs.items():
-        print(name,': ', value)
+def get_model_record(run_n, action):
+	model_record = np.array([run_n, action.step_number, action.n_branch, action.n_search, \
+	action.q_hat[0], action.frac_change_in_opt_gap], dtype = float)
 
-
-
-
-
+	return(model_record)
 
 
 		

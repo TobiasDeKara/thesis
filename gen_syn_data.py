@@ -16,8 +16,8 @@ from numpy.random import multivariate_normal, normal
 import os
 import subprocess
 
-def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
-	 batch_n = int(sys.argv[1])):
+def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
+	 run_n = sys.argv[1], batch_n = sys.argv[2]): # removed int(sys.argv[]), might need?
     """Generate a synthetic regression dataset: y, x, and b.
     The data matrix x is sampled from a multivariate gaussian with exponential 
     correlation between columns.
@@ -45,7 +45,7 @@ def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
     else: 
         p_sub_dir = f'p{int(np.log10(p))}'
 
-    xy_out_dir = f'~/thesis/synthetic_data/{p_sub_dir}/batch_{batch_n}'
+    xy_out_dir = f'synthetic_data/{p_sub_dir}/batch_{batch_n}'
     os.makedirs(xy_out_dir, exist_ok=True)
 
     seed_support_list = []
@@ -53,12 +53,6 @@ def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
         seed = int(10**9 * np.random.random_sample())
         np.random.seed(seed)
      
-        # Make b
-        b = np.zeros((p,1))
-        support = np.random.choice(range(p), size=supp_size)    
-        b[support] = np.ones(supp_size, 1)
-        seed_support = np.concatenate([np.array(seed, ndmin=1), np.array(support, ndmin=1)])
-        seed_support_list.append(seed_support)
 
         # Make x
         cov_mat = np.zeros((p,p))
@@ -72,6 +66,9 @@ def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
         # Note that the norm in 'np.linalg.norm'(in the line above) defaults to L2
         
         # Make y
+        unshuffled_support = [i for i in range(p) if i % (p/supp_size) == 0]
+        b = np.zeros((p, 1))
+        b[unshuffled_support] = np.ones((supp_size,1))
         mu = np.matmul(x, b)
         var_xb = (np.std(mu, ddof=1)) ** 2
         sd_epsilon = np.sqrt(var_xb / snr)
@@ -80,6 +77,17 @@ def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
         y_centered = y - np.mean(y)
         y_normalized = y_centered / np.linalg.norm(y_centered)
     
+        # Shuffle x
+        perm = np.random.permutation(p)
+        x_shuffled = x_normalized[:, perm]
+
+        # Identify support after shuffle
+        support = [ind for ind in range(p) if perm[ind] in set(unshuffled_support)]
+
+        # Record support
+        seed_support = np.concatenate([np.array(seed, ndmin=1), np.array(support, ndmin=1)])
+        seed_support_list.append(seed_support)
+
         # Save
         # Note: For brevity, the n and p values recorded in the file names are 
         # the log base 10 of the actual values
@@ -87,16 +95,16 @@ def make_syn_data(n_mat=10**2, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
         # Make file name
         filetag = f'gen_syn_n{int(np.log10(n))}_{p_sub_dir}_supp{supp_size}_seed{seed}' 
        
-        np.save(f'{xy_out_dir}/x_{filetag}', x_normalized)
-        np.save(f'{xy_out_dir}/y_{filetag)', y_normalized)
-        del x, y, b
+        np.save(f'{xy_out_dir}/x_{filetag}', x_shuffled)
+        np.save(f'{xy_out_dir}/y_{filetag}', y_normalized)
+        del x, y
     
     seed_support_array = np.vstack(seed_support_list)
     b_out_dir = f'synthetic_data/{p_sub_dir}/seed_support_records_run_{run_n}'
     os.makedirs(b_out_dir, exist_ok=True)
     np.save(f'{b_out_dir}/seed_support_record_batch_{batch_n}', seed_support_array)
 
-make_syn_data(n_mat=10, p=1000, supp_size=10)
+make_syn_data(n_mat=20, p=5, supp_size=1)
 
 # For Testing
 # import subprocess
