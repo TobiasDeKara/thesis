@@ -5,44 +5,67 @@ import numpy as np
 import subprocess
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
-# import datetime
 
 # A script to train the branch model and the search model on the combined
 # action records found in './combined_action_records/run_<run_n>', where 
 # <run_n> is passed to this script from the batch script (or command line) call 
 # of 'python run_rl.py <run_n>'.
 
-run_n = int(sys.argv[1])
 
-train_branch = True
-train_search = False
+def update_param(action_type, reward_format, n_layer, drop_out, run_n=sys.argv[1]):
+	# Load x and y
+	record = np.load(f'./combined_action_records/run_{run_n}/{action_type}_rec_comb.npy')
+	validation_record = np.load(f'./combined_action_records/run_validation/{action_type}_rec_comb.npy')
+	n_col = record.shape[1]
+	x, y = np.hsplit(record, np.array([n_col-1]))
+	validation_x, validation_y = np.hsplit(validation_record, np.array([n_col-1]))
+	y = y.reshape(-1)
+	validation_y = validation_y.reshape(-1)
 
-# Update parameters of Branch Model
-if train_branch == True:
-	branch_model_name = 'branch_model_in61_lay2'
-	branch_model = tf.keras.models.load_model(f'./models/{branch_model_name}')
-	b_log_dir = f"tb_logs/q_branch/run_{run_n}"  # datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-	subprocess.run(f'mkdir {b_log_dir}', shell=True)
-	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=b_log_dir) # histogram_freq=1
+	# Make vector of weights (to up-weight positive y values)
+	n_obs = x.shape[0]
+	validation_n_obs = validation_x.shape[0]
+	n_pos = sum(y>0)
+	validation_n_pos = sum(validation_y > 0)
+	if n_pos > 0:
+		weight_pos = n_obs / n_pos
+	else:
+		weight_pos = 1
+	if validation_n_pos > 0:
+		validation_weight_pos = validation_n_obs / validation_n_pos
+	else:
+		validation_weight_pos = 1
 
-	branch_record = np.load(f'./combined_action_records/run_{run_n}/branch_rec_comb.npy')
-	n_col = branch_record.shape[1]
-	x, y = np.hsplit(branch_record, np.array([n_col-1]))
-	branch_model.fit(x, y, epochs=2000, verbose=0, callbacks=[tensorboard_callback])
+	weights = np.ones(n_obs)
+	validation_weights = np.ones(validation_n_obs)
 
-	branch_model.save(f'./models/{branch_model_name}')
+	weights[y>0] = np.full(shape=n_pos, fill_value=weight_pos)
+	validation_weights[y>0] = np.full(shape=validation_n_pos, fill_value=validation_weight_pos)
 
-# Repeat for Search Model
-if train_search == True:
-	search_model_name='search_model_in53_lay2'
-	search_model = tf.keras.models.load_model(f'./models/{search_model_name}')
-	s_log_dir = f"tb_logs/q_search/run_{run_n}"  # datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-	subprocess.run(f'mkdir {s_log_dir}', shell=True)
-	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=s_log_dir) # histogram_freq=1
+	# Make binary reward
+	if reward_format == 'binary':
+		y[y>0] = np.ones(n_pos)
+		validation_y[validation_y>0] = np.ones(validation_n_pos)
 
-	search_record = np.load(f'./combined_action_records/run_{run_n}/search_rec_comb.npy')
-	n_col = search_record.shape[1]
-	x, y = np.hsplit(search_record, np.array([n_col-1]))
-	search_model.fit(x, y, epochs=2000, verbose=0, callbacks=[tensorboard_callback])
+	# Load model
+	model_name = f'{action_type}_model_in{x.shape[1]}_lay{n_layer}_drop_out_{drop_out}_rew_{reward_format}'
+	model = tf.keras.models.load_model(f'./models/{model_name}')
+	log_dir = f"tb_logs/q_{action_type}/run_{run_n}/{reward_format}/lay{n_layer}_drop_out_{drop_out}"
+	os.makedirs(log_dir, exist_ok=True)
+	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir)
 
-	search_model.save(f'./models/{search_model_name}')
+	model.fit(x, y, epochs=10, verbose=0, sample_weight=weights, callbacks=[tensorboard_callback], \
+	validation_data = [validation_x, validation_y, validation_weights)
+	model.save(f'./models/{model_name}')
+
+if __name__ == '__main__':
+	for n_layer in [3, 4]:
+		for drop_out in ['yes', 'no']:
+			update_param(action_type='branch', reward_format = 'binary', \
+			n_layer=n_layer, drop_out=drop_out)
+			update_param(action_type='branch', reward_format = 'numeric', \
+			n_layer=n_layer, drop_out=drop_out)
+			update_param(action_type='search', reward_format = 'binary', \
+			n_layer=n_layer, drop_out=drop_out)
+			update_param(action_type='search', reward_format = 'numeric', \
+			n_layer=n_layer, drop_out=drop_out)
