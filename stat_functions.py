@@ -11,12 +11,12 @@ def get_active_node_stats(active_nodes):
 		len_zlbs.append(len(node.zlb))
 		primal_values.append(node.primal_value)
 		len_supports.append(len(node.support))
-		searched.append(node.searched)
+		searched.append(0) # keeping this for compatibility
 	len_zubs_percentiles = np.quantile(len_zubs,[0,0.25,0.5,0.75,1])
 	len_zlbs_percentiles = np.quantile(len_zlbs,[0,0.25,0.5,0.75,1])
 	primal_values_percentiles = np.quantile(primal_values,[0,0.25,0.5,0.75,1])
 	len_supports_percentiles = np.quantile(len_supports,[0,0.25,0.5,0.75,1])
-	mean_searched = np.mean(searched, keepdims=True)
+	mean_searched = np.mean(searched, keepdims=True) # keeping for compatibility
 	stats = (len_zubs_percentiles, len_zlbs_percentiles,\
 		primal_values_percentiles, len_supports_percentiles, mean_searched)
 	active_node_stats = np.concatenate(stats)
@@ -29,7 +29,7 @@ def get_node_stats(node, node_key, lower_bound_node_key, upper_bound_node_key):
 	has_lb = (lower_bound_node_key == node_key)
 	has_ub = (upper_bound_node_key == node_key)
 	node_stats = np.array([len(node.zub), len(node.zlb), node.primal_value, \
-	len_support, node.searched, has_lb, has_ub], dtype=float, ndmin=1)
+	len_support, 0, has_lb, has_ub], dtype=float, ndmin=1) # 0 for compatibility
 	return(node_stats)
 
 def get_static_stats(cov, x, y, active_nodes, active_x_i, global_stats):
@@ -68,21 +68,16 @@ def get_static_stats(cov, x, y, active_nodes, active_x_i, global_stats):
 
 
 def get_all_action_stats(active_nodes, p, cov, x, y, lower_bound_node_key, upper_bound_node_key):
-	# Note: the 'searching_stats' are the same as 'node_stats' because for searching we only need to chose a node to search in
 	# Returns:
 	# 	1.  'all_branching_stats': an np.array of stats for branching, one row per active node/x_i pair,
-	# 	2.  'all_searching_stats': an np.array of stats for searching, one row per active node
-	# 	3.  'all_branching_keys': an np.array, first column is the variable index, 2nd col is node key 
-	# 	4.  'all_searching_keys': an np.array of strings of node keys
+	# 	2.  'all_branching_keys': an np.array, first column is the variable index, 2nd col is node key 
 
-	all_branching_stats, all_branching_keys, all_searching_stats, all_searching_keys = [], [], [], []
+	all_branching_stats, all_branching_keys, = [], []
 
 	for key in active_nodes:
 		### Stats for node
 		node = active_nodes[key]
 		node_stats = get_node_stats(node, key, lower_bound_node_key, upper_bound_node_key)
-		all_searching_stats.append(node_stats)
-		all_searching_keys.append(key)
 
 		# Find the x_i active in this specific node     
 		node_active_x_i = [i for i in range(p) if i not in node.zlb and i not in node.zub]
@@ -115,30 +110,25 @@ def get_all_action_stats(active_nodes, p, cov, x, y, lower_bound_node_key, upper
         
 	# Convert results to np.arrays instead of lists (because this is the format used by OpenAI's gym package)
 	all_branching_stats = np.vstack(all_branching_stats)
-	all_searching_stats = np.vstack(all_searching_stats)
 	all_branching_keys = np.vstack(all_branching_keys)
-	all_searching_keys = np.array(all_searching_keys, dtype=str)
+
+	# Cap the number of branch actions passed to the q models at p**2
+	if all_branching_stats.shape[0] > p**2:
+		random_ind = np.random.choice(all_branching_stats.shape[0], size=p**2, replace=False)
+		all_branching_stats = all_branching_stats[random_ind, :]
 	
-	return(all_branching_stats, all_searching_stats, all_branching_keys, all_searching_keys)
+	return(all_branching_stats, all_branching_keys)
 
 
 def get_random_action_stats(active_nodes, p, cov, x, y, lower_bound_node_key, upper_bound_node_key):
-	# Note: the 'search_stats' are the same as 'node_stats' because for searching we only need to chose a node to search in
 	# Returns:
 	# 	1.  'branch_stats': an np vector of stats for branching on a randomly chosen active x_i in the randomly chosen active node,
-	# 	2.  'search_stats': an np vector of stats of a randomly chosen active node (not necessarily the one chosen for branching)
-	#	3.  'branch_keys': an np vector of strings, the x_i index and the node key
-	# 	4.  'search_key': a string, the node key for the randomly chosen search node
+	#	2.  'branch_keys': an np vector of strings, the x_i index and the node key
 
-	### Search
-	search_key, search_node = random.choice(list(active_nodes.items()))
-	search_key = np.array(search_key, dtype=str, ndmin=1)
-	search_stats = get_node_stats(search_node, search_key, lower_bound_node_key, upper_bound_node_key)
-	
 	### Branch
 	branch_node_key, branch_node = random.choice(list(active_nodes.items()))
 	branch_node_stats = get_node_stats(branch_node, branch_node_key, \
-	lower_bound_node_key, upper_bound_node_key)
+		lower_bound_node_key, upper_bound_node_key)
 
 	# Randomly choose an x_i that is active in this specific node     
 	node_active_x_i = [i for i in range(p) if i not in branch_node.zlb and i not in branch_node.zub]
@@ -167,5 +157,5 @@ def get_random_action_stats(active_nodes, p, cov, x, y, lower_bound_node_key, up
 	branch_stats = np.concatenate(branch_arrays)
 	branch_stats = np.array(branch_stats, ndmin=2)
 
-	return(branch_stats, search_stats, branch_keys, search_key)
+	return(branch_stats, branch_keys)
 
