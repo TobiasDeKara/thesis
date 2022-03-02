@@ -38,9 +38,9 @@ for i in [0, 1, 2, 3, 4]:
 		out_file_name = 'ep_res_rec_comb.npy'
 
 	elif i == 5: # seed_support records
-		in_dir = f'./synthetic_data/p3/seed_support_records_run_{run_n}'
+		in_dir = f'./synthetic_data/p3/seed_support_records'
 		record_list = [f for f in os.listdir(in_dir)]
-		out_dir = f'./combined_seed_support_records/run_{run_n}'
+		out_dir = f'./combined_seed_support_records/'
 		os.makedirs(out_dir, exist_ok=True)
 		out_file_name = 'seed_support_rec_comb.npy'
 

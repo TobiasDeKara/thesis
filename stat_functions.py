@@ -23,12 +23,13 @@ def get_active_node_stats(active_nodes):
 	active_node_stats = np.append(active_node_stats, len(active_nodes))
 	return(active_node_stats)
 
-def get_node_stats(node, node_key, lower_bound_node_key):
+def get_node_stats(node, node_key, lower_bound_node_key, upper_bound_node_key):
 	# Returns 5 summary stats for a given node
 	len_support = len(node.support) if node.support else 0
 	has_lb = (lower_bound_node_key == node_key)
-	node_stats = np.array([len(node.zub), len(node.zlb), node.primal_value, len_support, node.searched, has_lb], \
-	dtype=float, ndmin=1)
+	has_ub = (upper_bound_node_key == node_key)
+	node_stats = np.array([len(node.zub), len(node.zlb), node.primal_value, \
+	len_support, node.searched, has_lb, has_ub], dtype=float, ndmin=1)
 	return(node_stats)
 
 def get_static_stats(cov, x, y, active_nodes, active_x_i, global_stats):
@@ -66,7 +67,7 @@ def get_static_stats(cov, x, y, active_nodes, active_x_i, global_stats):
 	return(static_stats)
 
 
-def get_all_action_stats(active_nodes, p, cov, x, y, lower_bound_key):
+def get_all_action_stats(active_nodes, p, cov, x, y, lower_bound_node_key, upper_bound_node_key):
 	# Note: the 'searching_stats' are the same as 'node_stats' because for searching we only need to chose a node to search in
 	# Returns:
 	# 	1.  'all_branching_stats': an np.array of stats for branching, one row per active node/x_i pair,
@@ -79,7 +80,7 @@ def get_all_action_stats(active_nodes, p, cov, x, y, lower_bound_key):
 	for key in active_nodes:
 		### Stats for node
 		node = active_nodes[key]
-		node_stats = get_node_stats(node, key, lower_bound_key)
+		node_stats = get_node_stats(node, key, lower_bound_node_key, upper_bound_node_key)
 		all_searching_stats.append(node_stats)
 		all_searching_keys.append(key)
 
@@ -121,7 +122,7 @@ def get_all_action_stats(active_nodes, p, cov, x, y, lower_bound_key):
 	return(all_branching_stats, all_searching_stats, all_branching_keys, all_searching_keys)
 
 
-def get_random_action_stats(active_nodes, p, cov, x, y, lower_bound_key):
+def get_random_action_stats(active_nodes, p, cov, x, y, lower_bound_node_key, upper_bound_node_key):
 	# Note: the 'search_stats' are the same as 'node_stats' because for searching we only need to chose a node to search in
 	# Returns:
 	# 	1.  'branch_stats': an np vector of stats for branching on a randomly chosen active x_i in the randomly chosen active node,
@@ -132,11 +133,12 @@ def get_random_action_stats(active_nodes, p, cov, x, y, lower_bound_key):
 	### Search
 	search_key, search_node = random.choice(list(active_nodes.items()))
 	search_key = np.array(search_key, dtype=str, ndmin=1)
-	search_stats = get_node_stats(search_node, search_key, lower_bound_key)
+	search_stats = get_node_stats(search_node, search_key, lower_bound_node_key, upper_bound_node_key)
 	
 	### Branch
 	branch_node_key, branch_node = random.choice(list(active_nodes.items()))
-	branch_node_stats = get_node_stats(branch_node, branch_node_key, lower_bound_key)
+	branch_node_stats = get_node_stats(branch_node, branch_node_key, \
+	lower_bound_node_key, upper_bound_node_key)
 
 	# Randomly choose an x_i that is active in this specific node     
 	node_active_x_i = [i for i in range(p) if i not in branch_node.zlb and i not in branch_node.zub]

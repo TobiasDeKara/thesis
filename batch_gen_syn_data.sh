@@ -13,7 +13,7 @@
 #SBATCH --array=0-95
 
 # Specify a job name:
-#SBATCH -J gen_p3_r0
+#SBATCH -J gen_p3
 
 # Specify an output file
 # Use '%A' for array-job ID, '%J' for job ID and '%a' for task ID
@@ -25,7 +25,7 @@
 source ~/L0_env_p3.9.0/bin/activate
 
 # python -u ~/thesis/gen_syn_data.py validation $SLURM_ARRAY_TASK_ID
-python -u ~/thesis/gen_syn_data.py 0 $SLURM_ARRAY_TASK_ID
+python -u ~/thesis/gen_syn_data.py $SLURM_ARRAY_TASK_ID
 
 # Format: python -u ~/thesis/gen_syn_data.py <run_n> <batch_n>
 # Each call to gen_syn_data.py produces 1 batch of data, and sends

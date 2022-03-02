@@ -5,6 +5,7 @@ import numpy as np
 import subprocess
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
+import shutil
 
 # A script to train the branch model and the search model on the combined
 # action records found in './combined_action_records/run_<run_n>', where 
@@ -14,7 +15,8 @@ import tensorflow as tf
 
 def update_param(action_type, reward_format, n_layer, drop_out, run_n=sys.argv[1]):
 	# Load x and y
-	record = np.load(f'./combined_action_records/run_{run_n}/{action_type}_rec_comb.npy')
+	record = np.load(f'./combined_action_records/all_runs/all_{action_type}_records.npy')
+#	record = np.load(f'./combined_action_records/run_{run_n}/{action_type}_rec_comb.npy')
 	validation_record = np.load(f'./combined_action_records/run_validation/{action_type}_rec_comb.npy')
 	n_col = record.shape[1]
 	x, y = np.hsplit(record, np.array([n_col-1]))
@@ -40,7 +42,8 @@ def update_param(action_type, reward_format, n_layer, drop_out, run_n=sys.argv[1
 	validation_weights = np.ones(validation_n_obs)
 
 	weights[y>0] = np.full(shape=n_pos, fill_value=weight_pos)
-	validation_weights[y>0] = np.full(shape=validation_n_pos, fill_value=validation_weight_pos)
+	validation_weights[validation_y>0] = \
+	np.full(shape=validation_n_pos, fill_value=validation_weight_pos)
 
 	# Make binary reward
 	if reward_format == 'binary':
@@ -50,22 +53,31 @@ def update_param(action_type, reward_format, n_layer, drop_out, run_n=sys.argv[1
 	# Load model
 	model_name = f'{action_type}_model_in{x.shape[1]}_lay{n_layer}_drop_out_{drop_out}_rew_{reward_format}'
 	model = tf.keras.models.load_model(f'./models/{model_name}')
-	log_dir = f"tb_logs/q_{action_type}/run_{run_n}/{reward_format}/lay{n_layer}_drop_out_{drop_out}"
+
+	# Make or clear log directory
+	log_dir = f"tb_logs/q_{action_type}/all_runs/{reward_format}/lay{n_layer}_drop_out_{drop_out}"
+	# log_dir = f"tb_logs/q_{action_type}/run_{run_n}/{reward_format}/lay{n_layer}_drop_out_{drop_out}"
 	os.makedirs(log_dir, exist_ok=True)
+	for sub_dir in os.listdir(log_dir): 
+		# the automatically created sub_dirs are 'train' and 'validation'
+		shutil.rmtree(os.path.join(log_dir, sub_dir))
 	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir)
 
+	# Train model
 	model.fit(x, y, epochs=10, verbose=0, sample_weight=weights, callbacks=[tensorboard_callback], \
-	validation_data = [validation_x, validation_y, validation_weights)
+	validation_data = [validation_x, validation_y, validation_weights])
 	model.save(f'./models/{model_name}')
 
 if __name__ == '__main__':
-	for n_layer in [3, 4]:
-		for drop_out in ['yes', 'no']:
-			update_param(action_type='branch', reward_format = 'binary', \
-			n_layer=n_layer, drop_out=drop_out)
-			update_param(action_type='branch', reward_format = 'numeric', \
-			n_layer=n_layer, drop_out=drop_out)
-			update_param(action_type='search', reward_format = 'binary', \
-			n_layer=n_layer, drop_out=drop_out)
-			update_param(action_type='search', reward_format = 'numeric', \
-			n_layer=n_layer, drop_out=drop_out)
+#	for n_layer in [3, 4]:
+	n_layer = sys.argv[1]
+	# n_layer = 3
+	for drop_out in ['yes', 'no']:
+		update_param(action_type='branch', reward_format = 'binary', \
+		n_layer=n_layer, drop_out=drop_out)
+#		update_param(action_type='branch', reward_format = 'numeric', \
+#		n_layer=n_layer, drop_out=drop_out)
+#		update_param(action_type='search', reward_format = 'binary', \
+#		n_layer=n_layer, drop_out=drop_out)
+#		update_param(action_type='search', reward_format = 'numeric', \
+#		n_layer=n_layer, drop_out=drop_out)

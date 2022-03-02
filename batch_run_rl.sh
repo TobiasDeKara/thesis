@@ -39,7 +39,7 @@ module load python/3.9.0
 source ~/L0_env_p3.9.0/bin/activate
 
 python ~/thesis/run_rl.py $1 $SLURM_ARRAY_TASK_ID
-# python ~/thesis/run_rl.py validation 96
+# python ~/thesis/run_rl.py 99 96
 
 # python -u ~/thesis/run_rl.py {run_n} {first batch number}
 # Note: python -u ~/thesis/run_rl.py <batch_n>, will make record, 

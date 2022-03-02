@@ -54,14 +54,14 @@ class rl_node(Node):
 
 class rl_env(gym.Env):
 	def __init__(self, L0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, run_n=0, batch_n=0, \
-	branch_model_name='branch_model_in61_lay3_rew_binary', \
-	search_model_name='search_model_in53_lay3_rew_binary'):
+	branch_model_name='branch_model_in62_lay3_drop_out_yes_rew_binary', \
+	search_model_name='search_model_in54_lay3_drop_out_yes_rew_binary'):
 		super(rl_env, self).__init__()
 		""" Note: 'greedy_epsilon' is the probability of choosing random exploration, 
 		for testing performance after training, set greedy_epsilon to zero."""
 
 		self.action_space = gym.spaces.Discrete(2)
-		self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(67,))
+		self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(69,))
 		self.L0 = L0
 		self.l2 = l2
 		self.p = p
@@ -111,6 +111,9 @@ class rl_env(gym.Env):
 		self.lower_bound = None    # The minimum primal value over all active nodes.    This is the best
 		# case scenario, i.e. how good any integer solution yet to be found could be.
 		self.lower_bound_node_key = None # The key of the node with the lowest primal value
+		self.upper_bound_node_key = None 
+		# Node with lowest upper bound, if the upper bound is not an integer primal solution, else None
+
 		self.initial_optimality_gap = None
 		self.optimality_gap = None
 		self.record_batch_counter = 0
@@ -160,6 +163,7 @@ class rl_env(gym.Env):
 		root_node.lower_solve(self.L0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
 		self.lower_bound = root_node.primal_value
 		self.lower_bound_node_key = 'root_node'
+		self.upper_bound_node_key = 'root_node'
 		root_node.upper_solve(self.L0, self.l2, m=5)
 		self.update_curr_best_int_sol(root_node, 'upper')
 		self.initial_optimality_gap = \
@@ -179,11 +183,13 @@ class rl_env(gym.Env):
 		if random_number < self.greedy_epsilon:
 		    # Choose random branch and search actions, and get stats
 		    branch_stats, search_stats, branch_keys, search_keys = \
-		    	get_random_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y, self.lower_bound_node_key)
+		    	get_random_action_stats(self.active_nodes, self.p, self.cov, \
+		    	self.x, self.y, self.lower_bound_node_key, self.upper_bound_node_key)
 		else:
 		    # Get stats for all available actions
 		    branch_stats, search_stats, branch_keys, search_keys = \
-		    	get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y, self.lower_bound_node_key)
+		    	get_all_action_stats(self.active_nodes, self.p, self.cov, \
+		    	self.x, self.y, self.lower_bound_node_key, self.upper_bound_node_key)
 		
 		# Get q_hats by applying models
 		branch_q_hats = get_q_hats(self.branch_model_name, branch_stats, self.state['static_stats'], \
@@ -283,6 +289,7 @@ class rl_env(gym.Env):
 		    	self.curr_best_int_primal = search_sol_primal.copy()
 		    	self.curr_best_int_beta = search_betas.copy()
 		    	self.curr_best_int_support = search_support.copy()
+		    	self.upper_bound_node_key = None
 		    	# Check all nodes for elimination
 		    	for node_key in list(self.active_nodes.keys()):
 		    		if self.active_nodes[node_key].primal_value > self.curr_best_int_primal:
@@ -325,23 +332,27 @@ class rl_env(gym.Env):
 		    if int_sol(self.active_nodes[node_name_1], p=self.p, int_tol=self.int_tol, m=self.m):
 		    	if self.active_nodes[node_name_1].primal_value < self.curr_best_int_primal:
 		    		self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'primal')
+		    		self.upper_bound_node_key = None
 		    		upper_bound_updated = True
 		    	del self.active_nodes[node_name_1]
 		    else:    # If not int., find node 1 upper bound, and check if best so far
 		    	n_1_ub = self.active_nodes[node_name_1].upper_solve(self.L0, self.l2, m=5)
 		    	if n_1_ub < self.curr_best_int_primal:
 		    		self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'upper')
+		    		self.upper_bound_node_key = node_name_1
 		    		upper_bound_updated = True
 		    # repeat for node 2
 		    if int_sol(self.active_nodes[node_name_2], p=self.p, int_tol=self.int_tol, m=self.m):
 		    	if self.active_nodes[node_name_2].primal_value < self.curr_best_int_primal:
 		    		self.update_curr_best_int_sol(self.active_nodes[node_name_2], 'primal')
+		    		self.upper_bound_node_key = None
 		    		upper_bound_updated = True
 		    	del self.active_nodes[node_name_2]
 		    else:
 		    	n_2_ub = self.active_nodes[node_name_2].upper_solve(self.L0, self.l2, m=5)
 		    	if n_2_ub < self.curr_best_int_primal:
 		    		self.update_curr_best_int_sol(self.active_nodes[node_name_2], 'upper')
+		    		self.upper_bound_node_key = node_name_2
 		    		upper_bound_updated = True
 
 		    # Check for eliminations
@@ -566,7 +577,7 @@ class rl_env(gym.Env):
 		    ### Gather return values
 		    info = self.get_info()
 		    done = True
-		    observation = np.zeros((65))
+		    observation = np.zeros((69))
 		    reward = int(frac_change_in_opt_gap > 0)
 	
 		    return(observation, reward, done, info)
@@ -592,11 +603,11 @@ class rl_env(gym.Env):
 		if random_number < self.greedy_epsilon:
 		    # Choose random branch and search actions, and get stats
 		    branch_stats, search_stats, branch_keys, search_keys = \
-		    	get_random_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y, self.lower_bound_node_key)
+		    	get_random_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y, self.lower_bound_node_key, self.upper_bound_node_key)
 		else:
 		    # Get stats for all available actions
 		    branch_stats, search_stats, branch_keys, search_keys = \
-		    	get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y, self.lower_bound_node_key)
+		    	get_all_action_stats(self.active_nodes, self.p, self.cov, self.x, self.y, self.lower_bound_node_key, self.upper_bound_node_key)
 		
 		    # Cap the number of branch and search actions passed to the q models at p**2
 		    if branch_stats.shape[0] > self.p**2:

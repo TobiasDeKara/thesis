@@ -17,7 +17,7 @@ import os
 import subprocess
 
 def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
-	 run_n = sys.argv[1], batch_n = sys.argv[2]): # removed int(sys.argv[]), might need?
+	 batch_n = sys.argv[1]):
     """Generate a synthetic regression dataset: y, x, and b.
     The data matrix x is sampled from a multivariate gaussian with exponential 
     correlation between columns.
@@ -53,7 +53,6 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
         seed = int(10**9 * np.random.random_sample())
         np.random.seed(seed)
      
-
         # Make x
         cov_mat = np.zeros((p,p))
         for row in range(p):
@@ -100,11 +99,11 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
         del x, y
     
     seed_support_array = np.vstack(seed_support_list)
-    b_out_dir = f'synthetic_data/{p_sub_dir}/seed_support_records_run_{run_n}'
+    b_out_dir = f'synthetic_data/{p_sub_dir}/seed_support_records'
     os.makedirs(b_out_dir, exist_ok=True)
     np.save(f'{b_out_dir}/seed_support_record_batch_{batch_n}', seed_support_array)
 
-make_syn_data(n_mat=20, p=5, supp_size=1)
+make_syn_data(n_mat=10, p=1000, supp_size=10)
 
 # For Testing
 # import subprocess
