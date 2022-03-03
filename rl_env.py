@@ -161,14 +161,14 @@ class rl_env(gym.Env):
 			residuals = self.y - np.dot(self.x[:,search_support], search_betas)
 		else:
 			residuals = self.y - np.matmul(self.x[:,search_support], search_betas)
-			rss = np.dot(residuals, residuals)
-			search_sol_primal = rss/2 + self.L0*search_support.shape[0] + \
-			self.l2*np.dot(search_betas, search_betas)
+		rss = np.dot(residuals, residuals)
+		search_sol_primal = rss/2 + self.L0*search_support.shape[0] + \
+		self.l2*np.dot(search_betas, search_betas)
 
 		# Check if new solution is best so far
 		if search_sol_primal < self.curr_best_int_primal:
 			# Update current best integer solution
-			self.curr_best_int_primal = search_sol_primal.copy()
+			self.curr_best_int_primal = search_sol_primal
 			self.curr_best_int_beta = search_betas.copy()
 			self.curr_best_int_support = search_support.copy()
 
@@ -202,6 +202,8 @@ class rl_env(gym.Env):
 		# Record stats and key
 		self.attach_action_option_stats(branch_stats, branch_keys, branch_q_hats)
 
+		# testing
+		# print(self.get_info())
     	#### End of reset() #######
 
 	def get_info(self):
@@ -371,7 +373,7 @@ class rl_env(gym.Env):
 				del action
 				action = prev_action
 				action_record = np.concatenate([action.static_stats, \
-				action.specific_stats])
+					action.specific_stats])
 				action_record = np.append(action_record, action.frac_change_in_opt_gap)
 
 				model_record = get_model_record(self.run_n, action)
@@ -388,6 +390,7 @@ class rl_env(gym.Env):
 			if branch_action_records:
 				branch_action_records = np.vstack(branch_action_records)
 				branch_record_dim = branch_action_records.shape[1]
+				# print(branch_action_records.shape)
 				file_name = \
 					f'branch_action_rec_dim{branch_record_dim}_{data_info}_{self.record_batch_counter}'
 				np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
@@ -422,7 +425,8 @@ class rl_env(gym.Env):
 					sum_true_sup_in_mod_sup += 1
 			frac_true_sup_in_mod_sup = sum_true_sup_in_mod_sup / true_support.shape[0]
 			ep_res_record = \
-				np.array([seed, self.L0, len_model_support, frac_true_sup_in_mod_sup])
+				np.array([self.run_n, seed, self.L0, total_n_steps, \
+					len_model_support, frac_true_sup_in_mod_sup])
 			data_info = re.sub('x_', '', self.x_file_name)
 			data_info = re.sub('.npy', '', data_info)
 			log_L0 = -int(np.log10(self.L0))
@@ -444,18 +448,19 @@ class rl_env(gym.Env):
 			branch_model_records.append(model_record)
 
 			# Get records of other recent actions (up to 10 previous)
-			while action.prev_action:
-				prev_action = action.prev_action
-				del action
-				action = prev_action
-				action_record = np.concatenate([action.static_stats, \
-				action.specific_stats])
-				action_record = np.append(action_record, action.frac_change_in_opt_gap)
+			for _ in range(total_n_steps % 10):
+				if action.prev_action is not None:
+					prev_action = action.prev_action
+					del action
+					action = prev_action
+					action_record = np.concatenate([action.static_stats, \
+					action.specific_stats])
+					action_record = np.append(action_record, action.frac_change_in_opt_gap)
 
-				model_record = get_model_record(self.run_n, action)
+					model_record = get_model_record(self.run_n, action)
 
-				branch_action_records.append(action_record)
-				branch_model_records.append(model_record)
+					branch_action_records.append(action_record)
+					branch_model_records.append(model_record)
 
 			data_info = re.sub('x_', '', self.x_file_name)
 			data_info = re.sub('.npy', '', data_info)

@@ -13,11 +13,14 @@ import shutil
 # of 'python run_rl.py <run_n>'.
 
 
-def update_param(action_type, reward_format, n_layer, drop_out, run_n=sys.argv[1]):
+def update_param(reward_format, n_layer, drop_out, run_n=sys.argv[1]):
 	# Load x and y
-	record = np.load(f'./combined_action_records/all_runs/all_{action_type}_records.npy')
-#	record = np.load(f'./combined_action_records/run_{run_n}/{action_type}_rec_comb.npy')
-	validation_record = np.load(f'./combined_action_records/run_validation/{action_type}_rec_comb.npy')
+	if run_n == 'all':
+		record = np.load(f'./combined_action_records/all_runs/all_branch_records.npy')
+	else:
+		record = np.load(f'./combined_action_records/run_{run_n}/branch_rec_comb.npy')
+
+	validation_record = np.load(f'./combined_action_records/run_validation/branch_rec_comb.npy')
 	n_col = record.shape[1]
 	x, y = np.hsplit(record, np.array([n_col-1]))
 	validation_x, validation_y = np.hsplit(validation_record, np.array([n_col-1]))
@@ -51,12 +54,14 @@ def update_param(action_type, reward_format, n_layer, drop_out, run_n=sys.argv[1
 		validation_y[validation_y>0] = np.ones(validation_n_pos)
 
 	# Load model
-	model_name = f'{action_type}_model_in{x.shape[1]}_lay{n_layer}_drop_out_{drop_out}_rew_{reward_format}'
+	model_name = f'branch_model_in{x.shape[1]}_lay{n_layer}_drop_out_{drop_out}_rew_{reward_format}'
 	model = tf.keras.models.load_model(f'./models/{model_name}')
 
 	# Make or clear log directory
-	log_dir = f"tb_logs/q_{action_type}/all_runs/{reward_format}/lay{n_layer}_drop_out_{drop_out}"
-	# log_dir = f"tb_logs/q_{action_type}/run_{run_n}/{reward_format}/lay{n_layer}_drop_out_{drop_out}"
+	if run_n == 'all':
+		log_dir = f"tb_logs/q_branch/all_runs/{reward_format}/lay{n_layer}_drop_out_{drop_out}"
+	else:
+		log_dir = f"tb_logs/q_branch/run_{run_n}/{reward_format}/lay{n_layer}_drop_out_{drop_out}"
 	os.makedirs(log_dir, exist_ok=True)
 	for sub_dir in os.listdir(log_dir): 
 		# the automatically created sub_dirs are 'train' and 'validation'
@@ -69,15 +74,9 @@ def update_param(action_type, reward_format, n_layer, drop_out, run_n=sys.argv[1
 	model.save(f'./models/{model_name}')
 
 if __name__ == '__main__':
-#	for n_layer in [3, 4]:
-	n_layer = sys.argv[1]
-	# n_layer = 3
+	n_layer = sys.argv[2]
 	for drop_out in ['yes', 'no']:
-		update_param(action_type='branch', reward_format = 'binary', \
+		update_param(reward_format = 'binary', \
 		n_layer=n_layer, drop_out=drop_out)
-#		update_param(action_type='branch', reward_format = 'numeric', \
-#		n_layer=n_layer, drop_out=drop_out)
-#		update_param(action_type='search', reward_format = 'binary', \
-#		n_layer=n_layer, drop_out=drop_out)
-#		update_param(action_type='search', reward_format = 'numeric', \
+#		update_param(reward_format = 'numeric', \
 #		n_layer=n_layer, drop_out=drop_out)

@@ -17,6 +17,6 @@
 # Run commands
 module load python/3.9.0
 source ~/L0_env_p3.9.0/bin/activate
-python ~/thesis/train_q_models.py $1
+python ~/thesis/train_q_models.py $1 $2
 
 

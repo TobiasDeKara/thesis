@@ -7,14 +7,11 @@ from keras.losses import mean_squared_error
 
 optimizer = keras.optimizers.Adam(learning_rate=0.001) # default learning rate == 0.001 
 
-for action_type in ['branch', 'search']:
+for action_type in ['branch']:
 	for drop_out in ['yes', 'no']:
 		if action_type == 'branch':
 			# Note on shape: 62 = 47 static stats plus 15 branch-specific stats
 			input_shape = 62
-		if action_type == 'search':
-			# Note on shape 54 = 47 static stats plus 7 search-node-specific
-			input_shape = 54
 
 		for n_layer in [3, 4]:
 			for reward_format in ['numeric', 'binary']:
