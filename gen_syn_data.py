@@ -16,8 +16,8 @@ from numpy.random import multivariate_normal, normal
 import os
 import subprocess
 
-def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
-	 batch_n = sys.argv[1]):
+def make_syn_data(n_mat=10**3, n=10**3, p=int(sys.argv[2]), rho=float(sys.argv[3]), \
+	snr=float(sys.argv[4]), batch_n = int(sys.argv[1])):
     """Generate a synthetic regression dataset: y, x, and b.
     The data matrix x is sampled from a multivariate gaussian with exponential 
     correlation between columns.
@@ -39,6 +39,7 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
         y: The response vector.
         b: The true vector of regression coefficients.
     """
+    supp_size = int(0.1*p)
     # Create n_th batch sub-directory
     if p == 5:
         p_sub_dir = 'pmini'
@@ -49,6 +50,7 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
     os.makedirs(xy_out_dir, exist_ok=True)
 
     seed_support_list = []
+
     for _ in range(n_mat):
         seed = int(10**9 * np.random.random_sample())
         np.random.seed(seed)
@@ -66,6 +68,7 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
         
         # Make y
         unshuffled_support = [i for i in range(p) if i % (p/supp_size) == 0]
+        # unshuffled_support = np.random.choice(5, 2, replace=False)
         b = np.zeros((p, 1))
         b[unshuffled_support] = np.ones((supp_size,1))
         mu = np.matmul(x, b)
@@ -92,7 +95,7 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
         # the log base 10 of the actual values
     
         # Make file name
-        filetag = f'gen_syn_n{int(np.log10(n))}_{p_sub_dir}_supp{supp_size}_seed{seed}' 
+        filetag = f'gen_syn_n{int(np.log10(n))}_{p_sub_dir}_corr{rho}_snr{snr}_seed{seed}' 
        
         np.save(f'{xy_out_dir}/x_{filetag}', x_shuffled)
         np.save(f'{xy_out_dir}/y_{filetag}', y_normalized)
@@ -101,16 +104,8 @@ def make_syn_data(n_mat=10**3, n=10**3, p=10**3, supp_size=10, rho=0.5, snr=5,\
     seed_support_array = np.vstack(seed_support_list)
     b_out_dir = f'synthetic_data/{p_sub_dir}/seed_support_records'
     os.makedirs(b_out_dir, exist_ok=True)
-    np.save(f'{b_out_dir}/seed_support_record_batch_{batch_n}', seed_support_array)
+    np.save(f'{b_out_dir}/seed_support_record_corr{rho}_snr{snr}', seed_support_array)
 
-make_syn_data(n_mat=10, p=1000, supp_size=10)
+if __name__ == "__main__":
+	make_syn_data(n_mat=100)
 
-# For Testing
-# import subprocess
-# x_file_list = subprocess.run( \
-# 		    	f"cd synthetic_data; ls x*_pmini_* -1U", \
-# 		    	capture_output=True, text=True, shell=True).stdout.splitlines()
-# x = x_file_list[3]
-# test = np.load(os.path.join(path, x))
-# test.shape
-# np.cov(test.T) 

@@ -15,8 +15,8 @@ def reverse_lookup(d, val):
     if d[key] == val:
       return key
 
-def get_q_hats(model_name, action_stats,  static_stats, batch_n, L0):
-	model_path = f'./model_copies/batch_{batch_n}/L0_{-int(np.log10(L0))}/{model_name}'
+def get_q_hats(model_name, action_stats,  static_stats, batch_n, log_L0, log_L2):
+	model_path = f'./model_copies/batch_{batch_n}/L0_{log_L0}_L2_{log_L2}/{model_name}'
 	model = tf.keras.models.load_model(model_path)
 	# When getting q hats for all branhcing, action_stats is a 2 dim
 	# array where each row represents an available action.

@@ -5,7 +5,7 @@ import re
 
 run_n = sys.argv[1]
 
-for i in [0, 1, 2]:
+for i in [3]: # [0,1,2]:
 	if i == 0: # branch actions 
 		in_dir = f'./action_records/run_{run_n}'
 		record_list = [f for f in os.listdir(in_dir) if re.match('branch', f)]
@@ -28,18 +28,18 @@ for i in [0, 1, 2]:
 		out_file_name = 'ep_res_rec_comb.npy'
 
 	elif i == 3: # seed_support records
-		in_dir = f'./synthetic_data/p3/seed_support_records'
+		p = 1  ### Set each time ###
+		in_dir = f'./synthetic_data/p{p}/seed_support_records'
 		record_list = [f for f in os.listdir(in_dir)]
 		out_dir = f'./combined_seed_support_records/'
 		os.makedirs(out_dir, exist_ok=True)
-		out_file_name = 'seed_support_rec_comb.npy'
+		out_file_name = f'seed_support_rec_comb_p{p}.npy'
 
 	array_list = []
 	for file_name in record_list:
 		try:
 			record = np.load(f'{in_dir}/{file_name}')
-			if not (i==2 and record.shape[0]==5): # for compatibility
-				array_list.append(record)
+			array_list.append(record)
 		except ValueError as error:
 			print(error)
 			print(f'failed to open {file_name}')

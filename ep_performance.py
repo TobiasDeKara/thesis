@@ -21,8 +21,8 @@ def get_ep_res(run_n='all'):
 	L0_4 = ep_rec[L0s == 10**-4]
 
 	# exploring
-	ind = np.where(L0_2[:,3].astype(np.float) == 1)[0:10]
-	print(L0_2[ind,:])
+	#ind = np.where(L0_2[:,3].astype(np.float) == 1)[0:10]
+	#print(L0_2[ind,:])
 
 	L0_2_steps = L0_2[:,3].astype(np.float)
 	L0_3_steps = L0_3[:,3].astype(np.float)

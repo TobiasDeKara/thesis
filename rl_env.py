@@ -44,14 +44,17 @@ import re
 
 
 class rl_env(gym.Env):
-	def __init__(self, L0=10**-4, l2=1, p=10**3, m=5, greedy_epsilon=0.3, run_n=0, batch_n=0, \
-	branch_model_name='branch_model_in62_lay3_drop_out_yes_rew_binary'):
+	def __init__(self, L0=10**-4, L2=1, p=10**3, m=5, greedy_epsilon=0.3, run_n=0, batch_n=0, \
+	branch_model_name='branch_model_in62_lay5_drop_out_yes_rew_binary_reg_True_rate_1e-05'):
 		super(rl_env, self).__init__()
 		""" Note: 'greedy_epsilon' is the probability of choosing random exploration, 
 		for testing performance after training, set greedy_epsilon to zero."""
 		self.L0 = L0
-		self.l2 = l2
-		self.p = p
+		self.log_L0 = -int(np.log10(L0))
+		self.L2 = L2
+		self.log_L2 = -int(np.log10(L2))
+		self.p = int(p)
+		self.log_p = int(np.log10(int(p)))
 		self.branch_model_name = branch_model_name
 		self.greedy_epsilon = greedy_epsilon
 		self.run_n = run_n
@@ -74,6 +77,10 @@ class rl_env(gym.Env):
 
 		data_dir = f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}'
 		self.x_file_list = [f for f in os.listdir(data_dir) if re.match('x', f)]
+
+		# Make copies of q-models
+		subprocess.run(f'cp -r models/{self.branch_model_name} model_copies/batch_{batch_n}/L0_{self.log_L0}_L2_{self.log_L2}', shell=True)
+
 		self.int_tol = 10**-4
 		# m=5 works well for our synthetic data, but will need to adjusted for other data sets.
 		self.m = m
@@ -139,11 +146,11 @@ class rl_env(gym.Env):
 		active_x_i = list(range(self.p))
 		# Note: 'lower_solve' returns the primal value and dual value, and it updates
 		# root_node.primal_value, .dual_value, .primal_beta, .z, .support, .r, .gs_xtr, and .gs_xb
-		root_node.lower_solve(self.L0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+		root_node.lower_solve(self.L0, self.L2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
 		self.lower_bound = root_node.primal_value
 		self.lower_bound_node_key = 'root_node'
 		self.upper_bound_node_key = 'root_node'
-		root_node.upper_solve(self.L0, self.l2, m=5)
+		root_node.upper_solve(self.L0, self.L2, m=5)
 		self.update_curr_best_int_sol(root_node, 'upper')
 		self.initial_optimality_gap = \
 		    (self.curr_best_int_primal - self.lower_bound) / self.lower_bound
@@ -154,7 +161,7 @@ class rl_env(gym.Env):
 		search_node = self.active_nodes['root_node']
 		search_support, search_betas = \
 			get_search_solution(node=search_node, p=self.p, L0=self.L0, \
-			l2=self.l2, y=self.y, batch_n=self.batch_n)
+			l2=self.L2, y=self.y, batch_n=self.batch_n)
 
 		    # Find primal value of search solution	
 		if search_support.shape[0] == 1:
@@ -163,7 +170,7 @@ class rl_env(gym.Env):
 			residuals = self.y - np.matmul(self.x[:,search_support], search_betas)
 		rss = np.dot(residuals, residuals)
 		search_sol_primal = rss/2 + self.L0*search_support.shape[0] + \
-		self.l2*np.dot(search_betas, search_betas)
+		self.L2*np.dot(search_betas, search_betas)
 
 		# Check if new solution is best so far
 		if search_sol_primal < self.curr_best_int_primal:
@@ -176,7 +183,7 @@ class rl_env(gym.Env):
 
 		#### Gather stats to describe the state
 		global_stats = \
-			np.array([self.L0, self.l2, self.p, self.initial_optimality_gap], dtype=float)
+			np.array([self.L0, self.L2, self.p, self.initial_optimality_gap], dtype=float)
 		self.cov = self.x.shape[0] * np.cov(self.x, rowvar=False, bias=True)
 		self.state['static_stats'] = get_static_stats(self.cov, self.x, self.y, \
 		    	self.active_nodes, active_x_i, global_stats)
@@ -197,13 +204,13 @@ class rl_env(gym.Env):
 		# Get q_hats by applying models
 		branch_q_hats = \
 			get_q_hats(self.branch_model_name, branch_stats, \
-			self.state['static_stats'], self.batch_n, self.L0)
+			self.state['static_stats'], self.batch_n, self.log_L0, self.log_L2)
 
 		# Record stats and key
 		self.attach_action_option_stats(branch_stats, branch_keys, branch_q_hats)
 
 		# testing
-		# print(self.get_info())
+		return(self.get_info())
     	#### End of reset() #######
 
 	def get_info(self):
@@ -269,9 +276,9 @@ class rl_env(gym.Env):
 
 		# Solve relaxations in new nodes
 		self.active_nodes[node_name_1].lower_solve(\
-			self.L0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+			self.L0, self.L2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
 		self.active_nodes[node_name_2].lower_solve(\
-			self.L0, self.l2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+			self.L0, self.L2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
 
 		# Update current best integer solution (aka upper bound)
 		upper_bound_updated = False
@@ -283,7 +290,7 @@ class rl_env(gym.Env):
 				upper_bound_updated = True
 			del self.active_nodes[node_name_1]
 		else:    # If not int., find node 1 upper bound, and check if best so far
-			n_1_ub = self.active_nodes[node_name_1].upper_solve(self.L0, self.l2, m=5)
+			n_1_ub = self.active_nodes[node_name_1].upper_solve(self.L0, self.L2, m=5)
 			if n_1_ub < self.curr_best_int_primal:
 				self.update_curr_best_int_sol(self.active_nodes[node_name_1], 'upper')
 				self.upper_bound_node_key = node_name_1
@@ -296,7 +303,7 @@ class rl_env(gym.Env):
 				upper_bound_updated = True
 			del self.active_nodes[node_name_2]
 		else:
-			n_2_ub = self.active_nodes[node_name_2].upper_solve(self.L0, self.l2, m=5)
+			n_2_ub = self.active_nodes[node_name_2].upper_solve(self.L0, self.L2, m=5)
 			if n_2_ub < self.curr_best_int_primal:
 				self.update_curr_best_int_sol(self.active_nodes[node_name_2], 'upper')
 				self.upper_bound_node_key = node_name_2
@@ -350,70 +357,15 @@ class rl_env(gym.Env):
 			    self.state['static_stats'], specific_stats, q_hat, self.step_counter, \
 			    frac_change_in_opt_gap)
 
-		# Write to file action and model stats from last 10 actions
-		if self.step_counter % 10 == 0:
-			# Get records of most recent action taken
-			action = self.current_action
-
-			branch_action_records = []
-			branch_model_records = []
-
-			action_record = np.concatenate([action.static_stats, \
-				action.specific_stats])
-			action_record = np.append(action_record, action.frac_change_in_opt_gap)
-
-			model_record = get_model_record(self.run_n, action)
-
-			branch_action_records.append(action_record)
-			branch_model_records.append(model_record)
-
-			# Get action records of previous actions taken
-			for _ in range(9):
-				prev_action = action.prev_action
-				del action
-				action = prev_action
-				action_record = np.concatenate([action.static_stats, \
-					action.specific_stats])
-				action_record = np.append(action_record, action.frac_change_in_opt_gap)
-
-				model_record = get_model_record(self.run_n, action)
-
-				branch_action_records.append(action_record)
-				branch_model_records.append(model_record)
-
-			data_info = re.sub('x_', '', self.x_file_name)
-			data_info = re.sub('.npy', '', data_info)
-			log_L0 = -int(np.log10(self.L0))
-			data_info = data_info + 'L0_' +  str(log_L0)
-
-			# Save action records
-			if branch_action_records:
-				branch_action_records = np.vstack(branch_action_records)
-				branch_record_dim = branch_action_records.shape[1]
-				# print(branch_action_records.shape)
-				file_name = \
-					f'branch_action_rec_dim{branch_record_dim}_{data_info}_{self.record_batch_counter}'
-				np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
-				del branch_action_records
-
-				branch_model_records = np.vstack(branch_model_records)
-				branch_record_dim = branch_model_records.shape[1]
-				model_data_info =  f'{data_info}_{self.branch_model_name}'
-				file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}'
-				np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
-				del branch_model_records
-
-			self.record_batch_counter += 1
-
 		### If we're done ...
 		if len(self.active_nodes) == 0:
 			### Gather and save records
 			action = self.current_action
-			total_n_steps = action.step_number
+			total_n_steps = self.step_counter
 
 			# Compare model support to true support => ep_res_record
 			seed_support_array = \
-				np.load(f'combined_seed_support_records/seed_support_rec_comb.npy')
+				np.load(f'combined_seed_support_records/seed_support_rec_comb_p{self.log_p}.npy')
 			seed = re.search('(?<=seed)[0-9]*', self.x_file_name)[0]
 			seed = int(seed)
 			true_support = \
@@ -429,8 +381,7 @@ class rl_env(gym.Env):
 					len_model_support, frac_true_sup_in_mod_sup])
 			data_info = re.sub('x_', '', self.x_file_name)
 			data_info = re.sub('.npy', '', data_info)
-			log_L0 = -int(np.log10(self.L0))
-			data_info = data_info + 'L0_' +  str(log_L0)
+			data_info = data_info + 'L0_' +  str(self.log_L0)
 		    
 			np.save(f'./ep_res_records/run_{self.run_n}/ep_res_rec_{data_info}', ep_res_record)
 
@@ -479,7 +430,7 @@ class rl_env(gym.Env):
 				branch_model_records = np.vstack(branch_model_records)
 				branch_record_dim = branch_model_records.shape[1]
 				model_data_info =  f'{data_info}_{self.branch_model_name}'
-				file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}'
+				file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}_{self.record_batch_counter}'
 				np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
 				del branch_model_records
 				#### End Gather and Save Records #######
@@ -492,8 +443,65 @@ class rl_env(gym.Env):
 		    
 		    
 		### If we're NOT done . . . 
+		
+		# Write to file action and model stats from last 10 actions
+		if self.step_counter % 10 == 0:
+			# Get records of most recent action taken
+			action = self.current_action # TODO: 
+
+			branch_action_records = []
+			branch_model_records = []
+
+			action_record = np.concatenate([action.static_stats, \
+				action.specific_stats])
+			action_record = np.append(action_record, action.frac_change_in_opt_gap)
+
+			model_record = get_model_record(self.run_n, action)
+
+			branch_action_records.append(action_record)
+			branch_model_records.append(model_record)
+
+			# Get action records of previous actions taken
+			for _ in range(9):
+				prev_action = action.prev_action
+				del action
+				action = prev_action
+				action_record = np.concatenate([action.static_stats, \
+					action.specific_stats])
+				action_record = np.append(action_record, action.frac_change_in_opt_gap)
+
+				model_record = get_model_record(self.run_n, action)
+
+				branch_action_records.append(action_record)
+				branch_model_records.append(model_record)
+
+			data_info = re.sub('x_', '', self.x_file_name)
+			data_info = re.sub('.npy', '', data_info)
+			log_L0 = -int(np.log10(self.L0))
+			data_info = data_info + 'L0_' +  str(log_L0)
+
+			# Save action records
+			if branch_action_records:
+				branch_action_records = np.vstack(branch_action_records)
+				branch_record_dim = branch_action_records.shape[1]
+				# print(branch_action_records.shape)
+				file_name = \
+					f'branch_action_rec_dim{branch_record_dim}_{data_info}_{self.record_batch_counter}'
+				np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
+				del branch_action_records
+
+				branch_model_records = np.vstack(branch_model_records)
+				branch_record_dim = branch_model_records.shape[1]
+				model_data_info =  f'{data_info}_{self.branch_model_name}'
+				file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}_{self.record_batch_counter}'
+				np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
+				del branch_model_records
+
+			self.record_batch_counter += 1
+
+
 		### Gather Stats
-		global_stats = np.array([self.L0, self.l2, self.p, self.initial_optimality_gap])		
+		global_stats = np.array([self.L0, self.L2, self.p, self.initial_optimality_gap])		
 		active_x_i = []
 		for node_key in self.active_nodes:
 		    active_x_i = active_x_i + \
@@ -522,7 +530,7 @@ class rl_env(gym.Env):
 		# (to possilby 1 action option, all action options, or a capped # of action options)
 		branch_q_hats = \
 			get_q_hats(self.branch_model_name, branch_stats, \
-			self.state['static_stats'], self.batch_n, self.L0)
+			self.state['static_stats'], self.batch_n, self.log_L0, self.log_L2)
 
 		# Record stats, keys and q_hats for the selected branch option
 		self.attach_action_option_stats(branch_stats, branch_keys, branch_q_hats)
