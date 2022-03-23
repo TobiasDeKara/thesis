@@ -31,7 +31,7 @@ def get_q_hats(model_name, action_stats,  static_stats, batch_n, log_L0, log_L2)
 	return(q_hats)
 
 
-def get_search_solution(node, p, L0, l2, y, batch_n):
+def get_search_solution(node, p, log_L0, log_L2, y, batch_n, log_p):
 	# node.x_sub_mat will be the submatrix of the original matrix x, that excludes
 	# the variables that have been branched down in the given node.  
 	# node.x_sub_mat will also be rearranged so that the variables that have been 
@@ -46,20 +46,19 @@ def get_search_solution(node, p, L0, l2, y, batch_n):
 	x_indexes = np.array((node.zlb + node_active_x_i), ndmin=2)
 	x_sub_mat_indexed = np.vstack((x_indexes, x_sub_mat))
 
-	log_L0 = -int(np.log10(L0))
-	path = f'./param_for_search/batch_{batch_n}/L0_{log_L0}'
+	path = f'./param_for_search/p_{log_p}/batch_{batch_n}/L0_{log_L0}_L2_{log_L2}'
 	fname=f'{path}/x_sub_mat.csv'
 	np.savetxt(fname=fname, X=x_sub_mat_indexed, fmt='%.18f', delimiter=',') 
 	fname=f'{path}/lambdas.csv'
-	np.savetxt(fname=fname,	X=np.array([L0, l2]), fmt='%.18f', delimiter=',') 
+	np.savetxt(fname=fname,	X=np.array([10**-log_L0, 10**-log_L2]), fmt='%.18f', delimiter=',') 
 	fname=f'{path}/len_zub.csv'
 	np.savetxt(fname=fname,	X=np.array([len(node.zub)]), fmt='%i', delimiter=',') 
 	fname=f'{path}/y.csv'
 	np.savetxt(fname=fname,	X=y, fmt='%.18f', delimiter=',')
  
-	subprocess.run(f'Rscript search_script.R {batch_n} {log_L0}', shell=True)
+	subprocess.run(f'Rscript search_script.R {batch_n} {log_L0} {log_L2} {log_p}', shell=True)
 
-	path = f'./results_of_search/batch_{batch_n}/L0_{log_L0}'
+	path = f'./results_of_search/p_{log_p}/batch_{batch_n}/L0_{log_L0}_L2_{log_L2}'
 	fname=f'{path}/support.csv'
 	search_support = np.loadtxt(fname, delimiter=',', dtype='int', ndmin=1)
 	fname=f'{path}/betas.csv'
@@ -87,9 +86,9 @@ def int_sol(node, p, int_tol=10**-4, m=5):
 
 
 	
-def get_model_record(run_n, action):
-	model_record = np.array([run_n, action.step_number,  \
-	action.q_hat[0], action.frac_change_in_opt_gap], dtype = float)
+def get_model_record(run_n, p, L0, L2, action):
+	model_record = np.array([run_n, p, L0, L2, action.step_number,  \
+	action.q_hat[0], action.frac_change_in_opt_gap])
 
 	return(model_record)
 

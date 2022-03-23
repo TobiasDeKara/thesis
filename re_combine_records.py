@@ -10,11 +10,15 @@ for record_type in ['action', 'ep_res', 'model']:
 
 	array_list = []
 	if record_type == 'action':
-		file_name = f'branch_rec_comb.npy'
-		out_file_name = f'all_branch_records.npy'
+		file_name = 'branch_rec_comb.npy'
+		out_file_name = 'all_branch_records.npy'
+	elif record_type == 'ep_res':
+		file_name = 'ep_res_rec_comb.npy'
+		out_file_name = 'all_ep_res_rec_comb.npy'
 	else:
-		file_name = f'{record_type}_rec_comb.npy'
-		out_file_name = f'all_{record_type}_rec_comb.npy'
+		file_name = 'branch_model_rec_comb.npy'
+		out_file_name = 'all_branch_model_rec_comb.npy'
+
 	for run_dir in run_dirs_list:
 		try:
 			record = np.load(f'{main_dir}/{run_dir}/{file_name}')

@@ -5,7 +5,7 @@
 # Runtime notes
 # p=1000, batches of n_mat=1000, took 1:05:00 and 1.2G
 
-#SBATCH --time=100:00:00
+#SBATCH --time=8:00:00
 
 ##SBATCH -p debug
 
@@ -20,13 +20,13 @@
 
 # Specify an output file
 # Use '%A' for array-job ID, '%J' for job ID and '%a' for task ID
-#SBATCH -e ./sbatch_errors/gen_syn_%J_%a.err
-#SBATCH -o ./sbatch_outputs/gen_syn_%J_%a.out
+#SBATCH -e ./sbatch_errors/gen_syn_%J.err
+#SBATCH -o ./sbatch_outputs/gen_syn_%J.out
 #----- End of slurm commands ----
 
 # Run commands
 source ~/L0_env_p3.9.0/bin/activate
-python -u ~/thesis/gen_syn_data.py 0 $1 $2 $3
+python -u ~/thesis/gen_syn_data.py $1 $2 $3 $4
 # python -u ~/thesis/gen_syn_data.py $SLURM_ARRAY_TASK_ID $1 $2 $3
 
 # Format: python -u ~/thesis/gen_syn_data.py <batch_n> <p> <rho (correlation)> <SNR>

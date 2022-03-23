@@ -5,8 +5,12 @@ import os
 import tensorflow as tf
 
 # For reference
-# model_record = np.array([run_n, action.step_number,  \
-#	action.q_hat[0], action.frac_change_in_opt_gap], dtype = float)
+# model_record = np.array([run_n, p, L0, L2, action.step_number,  \
+#        action.q_hat[0], action.frac_change_in_opt_gap])
+
+# Example file name:
+# branch_model_rec_dim7_gen_syn_n3_p1_corr0.3_snr10.0_seed130396699L0_2_L2_3_branch_model_in62_lay6_drop_out_yes_rew_binary_reg_True_rate_1e-05_range_0.npy
+
 
 def get_run_stats(run_n=0, model_name=None):
 
@@ -14,7 +18,7 @@ def get_run_stats(run_n=0, model_name=None):
 		# Get y and predictions using given model
 		if run_n == 'all':
 			action_rec = \
-				np.load('./combined_action_records/all_runs/branch_rec_comb.npy')
+				np.load('./combined_action_records/all_runs/all_branch_records.npy')
 		else:
 			action_rec = \
 				np.load(f'./combined_action_records/run_{run_n}/branch_rec_comb.npy')
@@ -40,8 +44,8 @@ def get_run_stats(run_n=0, model_name=None):
 	mse = ((y-pred)**2).mean()
 	n_obs = y.shape[0]
 	
-	n_non_zero_obs = (y > 0).sum()
-	n_non_zero_pred = (pred > 0).sum()
+	n_non_zero_obs = (y > 10**-6).sum()
+	n_non_zero_pred = (pred > 10**-6).sum()
    
 	# Note for next line, sum of non-zero elements == sum of all elements
 	mean_non_zero_obs = y.sum() / n_non_zero_obs 

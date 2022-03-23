@@ -45,7 +45,7 @@ import re
 
 class rl_env(gym.Env):
 	def __init__(self, L0=10**-4, L2=1, p=10**3, m=5, greedy_epsilon=0.3, run_n=0, batch_n=0, \
-	branch_model_name='branch_model_in62_lay5_drop_out_yes_rew_binary_reg_True_rate_1e-05'):
+	branch_model_name='branch_model_in62_lay6_drop_out_yes_rew_binary_reg_True_rate_1e-05_range'):
 		super(rl_env, self).__init__()
 		""" Note: 'greedy_epsilon' is the probability of choosing random exploration, 
 		for testing performance after training, set greedy_epsilon to zero."""
@@ -160,8 +160,8 @@ class rl_env(gym.Env):
 		### Use coordinate descent search
 		search_node = self.active_nodes['root_node']
 		search_support, search_betas = \
-			get_search_solution(node=search_node, p=self.p, L0=self.L0, \
-			l2=self.L2, y=self.y, batch_n=self.batch_n)
+			get_search_solution(node=search_node, p=self.p, log_L0=self.log_L0, \
+			log_L2=self.log_L2, y=self.y, batch_n=self.batch_n, log_p=self.log_p)
 
 		    # Find primal value of search solution	
 		if search_support.shape[0] == 1:
@@ -377,13 +377,14 @@ class rl_env(gym.Env):
 					sum_true_sup_in_mod_sup += 1
 			frac_true_sup_in_mod_sup = sum_true_sup_in_mod_sup / true_support.shape[0]
 			ep_res_record = \
-				np.array([self.run_n, seed, self.L0, total_n_steps, \
-					len_model_support, frac_true_sup_in_mod_sup])
+				np.array([self.run_n, seed, self.p, self.L0, self.L2, \
+					self.branch_model_name,\
+					 total_n_steps, len_model_support, frac_true_sup_in_mod_sup])
 			data_info = re.sub('x_', '', self.x_file_name)
 			data_info = re.sub('.npy', '', data_info)
-			data_info = data_info + 'L0_' +  str(self.log_L0)
+			data_info = data_info + 'L0_' +  str(self.log_L0) + '_L2_' + str(self.log_L2)
 		    
-			np.save(f'./ep_res_records/run_{self.run_n}/ep_res_rec_{data_info}', ep_res_record)
+			np.save(f'./ep_res_records/run_{self.run_n}/ep_res_rec_{data_info}_{self.branch_model_name}', ep_res_record)
 
 			# Get records of most recent action taken
 			branch_action_records = []
@@ -393,7 +394,7 @@ class rl_env(gym.Env):
 				action.specific_stats])
 			action_record = np.append(action_record, action.frac_change_in_opt_gap)
 
-			model_record = get_model_record(self.run_n, action)
+			model_record = get_model_record(self.run_n, self.p, self.L0, self.L2, action)
 
 			branch_action_records.append(action_record)
 			branch_model_records.append(model_record)
@@ -408,15 +409,15 @@ class rl_env(gym.Env):
 					action.specific_stats])
 					action_record = np.append(action_record, action.frac_change_in_opt_gap)
 
-					model_record = get_model_record(self.run_n, action)
+					model_record = get_model_record(self.run_n, self.p, \
+								self.L0, self.L2, action)
 
 					branch_action_records.append(action_record)
 					branch_model_records.append(model_record)
 
 			data_info = re.sub('x_', '', self.x_file_name)
 			data_info = re.sub('.npy', '', data_info)
-			log_L0 = -int(np.log10(self.L0))
-			data_info = data_info + 'L0_' +  str(log_L0)
+			data_info = data_info + 'L0_' +  str(self.log_L0) + '_L2_' + str(self.log_L2)
 
 			# Save action records
 			if branch_action_records:
@@ -447,7 +448,7 @@ class rl_env(gym.Env):
 		# Write to file action and model stats from last 10 actions
 		if self.step_counter % 10 == 0:
 			# Get records of most recent action taken
-			action = self.current_action # TODO: 
+			action = self.current_action
 
 			branch_action_records = []
 			branch_model_records = []
@@ -456,7 +457,7 @@ class rl_env(gym.Env):
 				action.specific_stats])
 			action_record = np.append(action_record, action.frac_change_in_opt_gap)
 
-			model_record = get_model_record(self.run_n, action)
+			model_record = get_model_record(self.run_n, self.p, self.L0, self.L2, action)
 
 			branch_action_records.append(action_record)
 			branch_model_records.append(model_record)
@@ -470,15 +471,15 @@ class rl_env(gym.Env):
 					action.specific_stats])
 				action_record = np.append(action_record, action.frac_change_in_opt_gap)
 
-				model_record = get_model_record(self.run_n, action)
+				model_record = get_model_record(self.run_n, self.p, self.L0, \
+							self.L2,  action)
 
 				branch_action_records.append(action_record)
 				branch_model_records.append(model_record)
 
 			data_info = re.sub('x_', '', self.x_file_name)
 			data_info = re.sub('.npy', '', data_info)
-			log_L0 = -int(np.log10(self.L0))
-			data_info = data_info + 'L0_' +  str(log_L0)
+			data_info = data_info + 'L0_' +  str(self.log_L0) + '_L2_' + str(self.log_L2)
 
 			# Save action records
 			if branch_action_records:
@@ -486,7 +487,7 @@ class rl_env(gym.Env):
 				branch_record_dim = branch_action_records.shape[1]
 				# print(branch_action_records.shape)
 				file_name = \
-					f'branch_action_rec_dim{branch_record_dim}_{data_info}_{self.record_batch_counter}'
+					f'branch_action_rec_dim{branch_record_dim}_{data_info}_{self.branch_model_name}_{self.record_batch_counter}'
 				np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
 				del branch_action_records
 

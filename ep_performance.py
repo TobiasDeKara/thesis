@@ -3,14 +3,20 @@ import pandas as pd
 import sys
 
 # for reference
-# ep_res_record = np.array([self.run_n, seed, self.L0, total_n_steps, \
-# 	len_model_support, frac_true_sup_in_mod_sup])
+# ep_res_record = np.array([self.run_n, seed, self.p, self.L0, self.L2, self.model_name, total_n_steps, len_model_support, frac_true_sup_in_mod_sup])
+
+# example file name:
+# ep_res_rec_gen_syn_n3_p1_corr0.3_snr10.0_seed106186579L0_2_L2_2
 
 def get_ep_res(run_n='all'):
-	if run_n == 'all':
-		ep_rec_file_name = './combined_ep_res_records/all_runs/all_ep_res_rec_comb.npy'
-	else:
-		ep_rec_file_name = f'./combined_ep_res_records/run_{run_n}/ep_res_rec_comb.npy'
+#	if run_n == 'all':
+#		ep_rec_file_name = './combined_ep_res_records/all_runs/all_ep_res_rec_comb.npy'
+#	else:
+#		ep_rec_file_name = f'./combined_ep_res_records/run_{run_n}/ep_res_rec_comb.npy'
+
+	in_dir = f'./ep_res_records/run_{run_n}'
+# TODO:	for p, corr, snr, L0, L2, model
+		record_list = [f for f in os.listdir(in_dir) if re.match('_L2_3_.*', f)]
 
 	ep_rec = np.load(ep_rec_file_name)
 	L0s = ep_rec[:,2].astype(np.float)
@@ -19,10 +25,6 @@ def get_ep_res(run_n='all'):
 	L0_2 = ep_rec[L0s == 10**-2]
 	L0_3 = ep_rec[L0s == 10**-3]
 	L0_4 = ep_rec[L0s == 10**-4]
-
-	# exploring
-	#ind = np.where(L0_2[:,3].astype(np.float) == 1)[0:10]
-	#print(L0_2[ind,:])
 
 	L0_2_steps = L0_2[:,3].astype(np.float)
 	L0_3_steps = L0_3[:,3].astype(np.float)
@@ -40,9 +42,4 @@ def get_ep_res(run_n='all'):
 	return(out)
 
 
-
-
-# TODO: supp size
-#frac in supp
-#group by run_n 
 

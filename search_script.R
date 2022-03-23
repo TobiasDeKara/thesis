@@ -12,8 +12,10 @@ library(readr)
 args = commandArgs(trailingOnly = TRUE)
 batch_n = args[1]
 log_L0 = args[2]
+log_L2 = args[3]
+log_p = args[4]
 
-path <- paste0('./param_for_search/batch_', batch_n, '/L0_', log_L0, '/')
+path <- paste0('./param_for_search/p_', log_p, '/batch_', batch_n, '/L0_', log_L0, '_L2_', log_L2, '/')
 x_sub <- read_csv(paste0(path, 'x_sub_mat.csv'), col_names=TRUE, show_col_types = FALSE)
 col_names <- as.integer(names(x_sub)) # these are the indexes of the variables relative to p
 # Note that later 'coefs(fit, lambda, gamma)' will give us indexes of the support relative to x_sub
@@ -39,7 +41,7 @@ index_of_support_in_p_unsorted <- col_names[index_of_support_in_x_sub]
 betas <- unname(betas_unsorted[order(index_of_support_in_p_unsorted)])
 support <- sort(index_of_support_in_p_unsorted)
 
-path <- paste0('./results_of_search/batch_', batch_n, '/L0_', log_L0, '/')
+path <- paste0('./results_of_search/p_', log_p, '/batch_', batch_n, '/L0_', log_L0, '_L2_', log_L2, '/')
 write.table(betas, paste0(path, 'betas.csv'), row.names=FALSE, col.names=FALSE)
 write.table(support, paste0(path, 'support.csv'), row.names=FALSE, col.names=FALSE)
 
