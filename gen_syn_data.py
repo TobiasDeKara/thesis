@@ -104,8 +104,8 @@ def make_syn_data(n_mat=10**3, n=10**3, p=int(sys.argv[2]), rho=float(sys.argv[3
     seed_support_array = np.vstack(seed_support_list)
     b_out_dir = f'synthetic_data/{p_sub_dir}/seed_support_records'
     os.makedirs(b_out_dir, exist_ok=True)
-    np.save(f'{b_out_dir}/seed_support_record_corr{rho}_snr{snr}', seed_support_array)
+    np.save(f'{b_out_dir}/seed_support_record_corr{rho}_snr{snr}_batch_{batch_n}', seed_support_array)
 
 if __name__ == "__main__":
-	make_syn_data(n_mat=100)
+	make_syn_data(n_mat=10)
 
