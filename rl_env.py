@@ -56,6 +56,7 @@ class rl_env(gym.Env):
 		self.p = int(p)
 		self.log_p = int(np.log10(int(p)))
 		self.branch_model_name = branch_model_name
+		self.reward = re.search('(binary|numeric)', branch_model_name)[1]
 		self.greedy_epsilon = greedy_epsilon
 		self.run_n = run_n
 		self.batch_n = batch_n 
@@ -384,7 +385,7 @@ class rl_env(gym.Env):
 			data_info = re.sub('.npy', '', data_info)
 			data_info = data_info + 'L0_' +  str(self.log_L0) + '_L2_' + str(self.log_L2)
 		    
-			np.save(f'./ep_res_records/run_{self.run_n}/ep_res_rec_{data_info}_{self.branch_model_name}', ep_res_record)
+			np.save(f'./ep_res_records/run_{self.run_n}/ep_res_rec_{self.reward}_{data_info}_{self.branch_model_name}', ep_res_record)
 
 			# Get records of most recent action taken
 			branch_action_records = []
