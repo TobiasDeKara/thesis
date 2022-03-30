@@ -6,16 +6,18 @@
 
 ##SBATCH -p debug
 
-#SBATCH --mem=2G
+#SBATCH --mem=8G
 
-#SBATCH --array=1-9
+#SBATCH --array=0-9
 
 # Specify a job name:
 #SBATCH -J perm_imp
 
-
 # Use '%A' for array-job ID, '%J' for job ID and '%a' for task ID
 #SBATCH -e ./sbatch_errors/perm_imp_%J.err
+
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=tobias_dekara@brown.edu
 
 #----- End of slurm commands ----
 

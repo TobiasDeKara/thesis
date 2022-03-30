@@ -15,6 +15,7 @@ x, y = np.hsplit(record, np.array([n_col-1]))
 y = y.reshape(-1)
 
 n_obs = x.shape[0]
+n_col = x.shape[1]
 n_pos = sum(y>10**-6)
 if n_pos > 0:
 	weight_pos = n_obs / n_pos
