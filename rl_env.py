@@ -56,7 +56,7 @@ class rl_env(gym.Env):
 		self.p = int(p)
 		self.log_p = int(np.log10(int(p)))
 		self.branch_model_name = branch_model_name
-		self.reward = re.search('(binary|numeric)', branch_model_name)[1]
+		self.reward = re.search('(binary|numeric|sig_num)', branch_model_name)[1]
 		self.greedy_epsilon = greedy_epsilon
 		self.run_n = run_n
 		self.batch_n = batch_n 
@@ -90,6 +90,7 @@ class rl_env(gym.Env):
 		self.x_file_name = None
 		self.active_nodes = None
 		self.step_counter = 0
+		self.node_counter = 0
 		self.x = None
 		self.y = None
 		self.cov = None
@@ -115,6 +116,7 @@ class rl_env(gym.Env):
 		""" 
 		self.active_nodes = dict()
 		self.step_counter = 0
+		self.node_counter = 1
 		self.x = None
 		self.y = None
 		self.cov = None
@@ -147,7 +149,7 @@ class rl_env(gym.Env):
 		active_x_i = list(range(self.p))
 		# Note: 'lower_solve' returns the primal value and dual value, and it updates
 		# root_node.primal_value, .dual_value, .primal_beta, .z, .support, .r, .gs_xtr, and .gs_xb
-		root_node.lower_solve(self.L0, self.L2, m=5, solver='l1cd', rel_tol=1e-4, mio_gap=0)
+		root_node.lower_solve(self.L0, self.L2, m=5, solver='l1cd', rel_tol=1e-8, mio_gap=1e-2)
 		self.lower_bound = root_node.primal_value
 		self.lower_bound_node_key = 'root_node'
 		self.upper_bound_node_key = 'root_node'
@@ -216,6 +218,7 @@ class rl_env(gym.Env):
 
 	def get_info(self):
 		info = {'step_count': self.step_counter,
+			'node_count': self.node_counter,
 			'x_file_name': self.x_file_name,
 			'curr_best_primal_value': self.curr_best_int_primal,
 			'beta': self.curr_best_int_beta,
@@ -265,15 +268,18 @@ class rl_env(gym.Env):
 		new_zub = branch_node.zub.copy()
 		new_zub.append(branch_x_i)
 
-		node_name_1 = f'node_{self.step_counter}'
+		node_name_1 = f'node_{self.node_counter}'
 		self.active_nodes[node_name_1] = \
 			Node(parent=branch_node, zlb=new_zlb, zub=branch_node.zub, \
 			x=branch_node.x, y=branch_node.y, xi_norm=branch_node.xi_norm)
-		node_name_2 = f'node_{self.step_counter}'
+		self.node_counter += 1
+
+		node_name_2 = f'node_{self.node_counter}'
 		self.active_nodes[node_name_2] = \
 			Node(parent=branch_node, zlb=branch_node.zlb, zub=new_zub, \
 			x=branch_node.x, y=branch_node.y, xi_norm=branch_node.xi_norm)
 		del self.active_nodes[branch_node_key] 
+		self.node_counter += 1
 
 		# Solve relaxations in new nodes
 		self.active_nodes[node_name_1].lower_solve(\
@@ -362,6 +368,7 @@ class rl_env(gym.Env):
 		if len(self.active_nodes) == 0:
 			### Gather and save records
 			action = self.current_action
+			total_n_nodes = self.node_counter
 			total_n_steps = self.step_counter
 
 			# Compare model support to true support => ep_res_record
@@ -376,11 +383,14 @@ class rl_env(gym.Env):
 			for x_i in true_support:
 				if x_i in self.curr_best_int_support:
 					sum_true_sup_in_mod_sup += 1
-			frac_true_sup_in_mod_sup = sum_true_sup_in_mod_sup / true_support.shape[0]
+			if true_support.shape[0] > 0:
+				frac_true_sup_in_mod_sup = sum_true_sup_in_mod_sup / true_support.shape[0]
+			else:
+				frac_true_sup_in_mod_sup = 'NA'
 			ep_res_record = \
 				np.array([self.run_n, seed, self.p, self.L0, self.L2, \
 					self.branch_model_name,\
-					 total_n_steps, len_model_support, frac_true_sup_in_mod_sup])
+					 total_n_nodes, len_model_support, frac_true_sup_in_mod_sup])
 			data_info = re.sub('x_', '', self.x_file_name)
 			data_info = re.sub('.npy', '', data_info)
 			data_info = data_info + 'L0_' +  str(self.log_L0) + '_L2_' + str(self.log_L2)
@@ -486,7 +496,6 @@ class rl_env(gym.Env):
 			if branch_action_records:
 				branch_action_records = np.vstack(branch_action_records)
 				branch_record_dim = branch_action_records.shape[1]
-				# print(branch_action_records.shape)
 				file_name = \
 					f'branch_action_rec_dim{branch_record_dim}_{data_info}_{self.branch_model_name}_{self.record_batch_counter}'
 				np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)

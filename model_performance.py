@@ -1,3 +1,4 @@
+import re
 import numpy as np
 import pandas as pd
 import subprocess
@@ -6,7 +7,7 @@ import tensorflow as tf
 
 # For reference
 # model_record = np.array([run_n, p, L0, L2, action.step_number,  \
-#        action.q_hat[0], action.frac_change_in_opt_gap])
+#        action.q_hat[0], action.frac_change_in_opt_gap, corr, snr, model_type, reward_format])
 
 # Example file name:
 # branch_model_rec_dim7_gen_syn_n3_p1_corr0.3_snr10.0_seed130396699L0_2_L2_3_branch_model_in62_lay6_drop_out_yes_rew_binary_reg_True_rate_1e-05_range_0.npy
@@ -36,16 +37,21 @@ def get_run_stats(run_n=0, model_name=None):
 		rec_file_name = f'./combined_model_records/run_{run_n}/branch_model_rec_comb.npy'
 		model_rec = np.load(rec_file_name)
 
-		n_col = model_rec.shape[1]
-		pred = model_rec[:, n_col-2]
-		y = model_rec[:, n_col-1]
+		pred = model_rec[:, 5].astype(float)
+		y = model_rec[:, 6].astype(float)
 
 	# Calculate stats
-	mse = ((y-pred)**2).mean()
 	n_obs = y.shape[0]
 	
 	n_non_zero_obs = (y > 10**-6).sum()
 	n_non_zero_pred = (pred > 10**-6).sum()
+
+	if re.search(model_name, 'numeric'):
+		y = y*100
+	if re.search(model_name, 'binary'):
+		y[y > 10**-6] = np.ones(n_non_zero_obs)
+
+	mse = ((y-pred)**2).mean()
    
 	# Note for next line, sum of non-zero elements == sum of all elements
 	mean_non_zero_obs = y.sum() / n_non_zero_obs 

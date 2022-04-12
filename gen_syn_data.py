@@ -107,5 +107,5 @@ def make_syn_data(n_mat=10**3, n=10**3, p=int(sys.argv[2]), rho=float(sys.argv[3
     np.save(f'{b_out_dir}/seed_support_record_corr{rho}_snr{snr}_batch_{batch_n}', seed_support_array)
 
 if __name__ == "__main__":
-	make_syn_data(n_mat=10)
+	make_syn_data(n_mat=100)
 
