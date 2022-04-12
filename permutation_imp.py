@@ -27,7 +27,9 @@ weights[y>10**-6] = np.full(shape=n_pos, fill_value=weight_pos)
 
 y[y>10**-6] = np.ones(n_pos)
 
-model_name = 'branch_model_in62_lay6_drop_out_yes_rew_binary_reg_True_rate_1e-05_range'
+# model_name = 'branch_model_in62_lay6_drop_out_yes_rew_binary_reg_True_rate_1e-05_range'
+model_name = 'branch_model_in62_lay6_drop_out_yes_rew_numeric_reg_True_rate_1e-05_range'
+
 
 model = tf.keras.models.load_model(f'./models/{model_name}')
 
@@ -43,6 +45,6 @@ for i in range(n_col):
 
 res_list.append(res_all_vars)
 res_list = np.array(res_list)
-np.savetxt(f'permutation_mse_list_rep_{rep_n}.csv', res_list, delimiter=',')
+np.savetxt(f'permutation_mse_list_numeric_rep_{rep_n}.csv', res_list, delimiter=',')
 
 

@@ -5,14 +5,14 @@
 # Runtime notes
 # p=1000, batches of n_mat=1000, took 1:05:00 and 1.2G
 
-#SBATCH --time=8:00:00
+#SBATCH --time=2:00:00
 
 ##SBATCH -p debug
 
 ##SBATCH -N 1
 ##SBATCH -n 5
 
-#SBATCH --mem=12G
+#SBATCH --mem=4G
 ##SBATCH --array=0-100
 
 # Specify a job name:
