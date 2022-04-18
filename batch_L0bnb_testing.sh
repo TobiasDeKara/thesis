@@ -3,7 +3,7 @@
 # --- Start of slurm commands -----------
 
 # Request an hour of runtime:
-#SBATCH --time=80:00:00
+#SBATCH --time=1:00:00
 
 ##SBATCH -p debug
 
@@ -12,7 +12,7 @@
 #SBATCH --mem=4G # Note: by default the memory is per NODE not per CPU
 
 # Specify a job name:
-#SBATCH -J p3_max_frac
+#SBATCH -J p1_p2_max_frac
 
 #SBATCH --array=0-8
 
@@ -28,7 +28,8 @@
 module load python/3.9.0
 source ~/L0_env_p3.9.0/bin/activate
 
-python -u ~/thesis/L0bnb_testing.py $1 $SLURM_ARRAY_TASK_ID
+python -u ~/thesis/L0bnb_testing.py 50 $SLURM_ARRAY_TASK_ID
+python -u ~/thesis/L0bnb_testing.py 100 $SLURM_ARRAY_TASK_ID
 
 # python -u ~/thesis/L0bnb_testing.py {p} {L0_L2_n} 
 # 'u' for unbuffered, meaning print statements are returned immediately

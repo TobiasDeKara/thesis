@@ -1,3 +1,5 @@
+combined_max_frac_res_records/
+sbatch_outputs/
 L0bnb_res_records/
 permutation_mse/
 combined_ep_res_records

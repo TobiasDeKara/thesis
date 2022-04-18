@@ -49,16 +49,16 @@ for i in range(len(x_file_list)):
 		L2,
 		5,
 		gap_tol=0.01,
-		time_limit=7200,
+		time_limit=3600,
 		branching=branching
 		)
 		
 	len_model_support = sum(tree_sol[1] > 0)
 
 	ep_res_record = np.array([p, L0, L2, corr, snr, \
-		tree.number_of_nodes-1, \
+		tree.number_of_nodes, \
 		len_model_support])
 	path = './L0bnb_res_records/'	
-	np.save(f'{path}L0bnb_testing_p{log_p}_branch_{branching}_L0_{log_L0}_L2_{log_L2}_{i}', \
+	np.save(f'{path}L0bnb_testing_p{log_p}_{branching}_L0_{log_L0}_L2_{log_L2}_{i}', \
 		ep_res_record)
 

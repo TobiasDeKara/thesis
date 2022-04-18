@@ -45,10 +45,13 @@ import re
 
 class rl_env(gym.Env):
 	def __init__(self, L0=10**-4, L2=1, p=10**3, m=5, greedy_epsilon=0.3, run_n=0, batch_n=0, \
-	branch_model_name='branch_model_in62_lay6_drop_out_yes_rew_binary_reg_True_rate_1e-05_range'):
+	branch_model_name='branch_model_in62_lay6_drop_out_yes_rew_binary_reg_True_rate_1e-05_range',
+	mp=False, test_train='train'):
 		super(rl_env, self).__init__()
 		""" Note: 'greedy_epsilon' is the probability of choosing random exploration, 
 		for testing performance after training, set greedy_epsilon to zero."""
+		self.mp = mp
+		self.test_train = test_train
 		self.L0 = L0
 		self.log_L0 = -int(np.log10(L0))
 		self.L2 = L2
@@ -76,7 +79,7 @@ class rl_env(gym.Env):
 		else:
                	    self.p_sub_dir = f'p{int(np.log10(self.p))}'
 
-		data_dir = f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}'
+		data_dir = f'/gpfs/scratch/tdekara/synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}'
 		self.x_file_list = [f for f in os.listdir(data_dir) if re.match('x', f)]
 
 		# Make copies of q-models
@@ -129,7 +132,7 @@ class rl_env(gym.Env):
 
 		if x_file_name is None:
                     if len(self.x_file_list) == 0:
-                        data_dir = f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}'
+                        data_dir = f'/gpfs/scratch/tdekara/synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}'
                         self.x_file_list = [f for f in os.listdir(data_dir) if re.match('x', f)]
 
                     rand_ind = np.random.choice(len(self.x_file_list))
@@ -138,8 +141,8 @@ class rl_env(gym.Env):
 		self.x_file_name = x_file_name
 	
 		y_file_name = x_file_name.replace('x', 'y')
-		self.x = np.load(f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{x_file_name}')
-		self.y = np.load(f'synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{y_file_name}')
+		self.x = np.load(f'/gpfs/scratch/tdekara/synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{x_file_name}')
+		self.y = np.load(f'/gpfs/scratch/tdekara/synthetic_data/{self.p_sub_dir}/batch_{self.batch_n}/{y_file_name}')
 		self.y = self.y.reshape(1000)
 		
 		### Initialize root node
@@ -161,26 +164,26 @@ class rl_env(gym.Env):
 		    (self.curr_best_int_primal - self.lower_bound) / self.lower_bound
 
 		### Use coordinate descent search
-		search_node = self.active_nodes['root_node']
-		search_support, search_betas = \
-			get_search_solution(node=search_node, p=self.p, log_L0=self.log_L0, \
-			log_L2=self.log_L2, y=self.y, batch_n=self.batch_n, log_p=self.log_p)
-
-		    # Find primal value of search solution	
-		if search_support.shape[0] == 1:
-			residuals = self.y - np.dot(self.x[:,search_support], search_betas)
-		else:
-			residuals = self.y - np.matmul(self.x[:,search_support], search_betas)
-		rss = np.dot(residuals, residuals)
-		search_sol_primal = rss/2 + self.L0*search_support.shape[0] + \
-		self.L2*np.dot(search_betas, search_betas)
-
-		# Check if new solution is best so far
-		if search_sol_primal < self.curr_best_int_primal:
-			# Update current best integer solution
-			self.curr_best_int_primal = search_sol_primal
-			self.curr_best_int_beta = search_betas.copy()
-			self.curr_best_int_support = search_support.copy()
+#		search_node = self.active_nodes['root_node']
+#		search_support, search_betas = \
+#			get_search_solution(node=search_node, p=self.p, log_L0=self.log_L0, \
+#			log_L2=self.log_L2, y=self.y, batch_n=self.batch_n, log_p=self.log_p)
+#
+#		    # Find primal value of search solution	
+#		if search_support.shape[0] == 1:
+#			residuals = self.y - np.dot(self.x[:,search_support], search_betas)
+#		else:
+#			residuals = self.y - np.matmul(self.x[:,search_support], search_betas)
+#		rss = np.dot(residuals, residuals)
+#		search_sol_primal = rss/2 + self.L0*search_support.shape[0] + \
+#		self.L2*np.dot(search_betas, search_betas)
+#
+#		# Check if new solution is best so far
+#		if search_sol_primal < self.curr_best_int_primal:
+#			# Update current best integer solution
+#			self.curr_best_int_primal = search_sol_primal
+#			self.curr_best_int_beta = search_betas.copy()
+#			self.curr_best_int_support = search_support.copy()
 
 		#### End of Search routine
 
@@ -213,7 +216,7 @@ class rl_env(gym.Env):
 		self.attach_action_option_stats(branch_stats, branch_keys, branch_q_hats)
 
 		# testing
-		return(self.get_info())
+		# return(self.get_info())
     	#### End of reset() #######
 
 	def get_info(self):
@@ -395,7 +398,8 @@ class rl_env(gym.Env):
 			data_info = re.sub('.npy', '', data_info)
 			data_info = data_info + 'L0_' +  str(self.log_L0) + '_L2_' + str(self.log_L2)
 		    
-			np.save(f'./ep_res_records/run_{self.run_n}/ep_res_rec_{self.reward}_{data_info}_{self.branch_model_name}', ep_res_record)
+			if not self.mp:
+				np.save(f'./ep_res_records/run_{self.run_n}/ep_res_rec_{self.reward}_{data_info}_{self.branch_model_name}', ep_res_record)
 
 			# Get records of most recent action taken
 			branch_action_records = []
@@ -425,39 +429,43 @@ class rl_env(gym.Env):
 
 					branch_action_records.append(action_record)
 					branch_model_records.append(model_record)
-
+	
 			data_info = re.sub('x_', '', self.x_file_name)
 			data_info = re.sub('.npy', '', data_info)
 			data_info = data_info + 'L0_' +  str(self.log_L0) + '_L2_' + str(self.log_L2)
-
+	
 			# Save action records
 			if branch_action_records:
 				branch_action_records = np.vstack(branch_action_records)
 				branch_record_dim = branch_action_records.shape[1]
 				file_name = \
 					f'branch_action_rec_dim{branch_record_dim}_{data_info}_{self.record_batch_counter}'
-				np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
+				if not self.mp and self.test_train == 'train':
+					np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
+				if self.mp and self.test_train == 'train':
+					np.save(f'/gpfs/home/tdekara/thesis/replay_buffer/{file_name}', branch_action_records)
 				del branch_action_records
-
+	
 				branch_model_records = np.vstack(branch_model_records)
 				branch_record_dim = branch_model_records.shape[1]
 				model_data_info =  f'{data_info}_{self.branch_model_name}'
 				file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}_{self.record_batch_counter}'
-				np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
+				if not self.mp:
+					np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
 				del branch_model_records
 				#### End Gather and Save Records #######
 
-			info = self.get_info()
+			# info = self.get_info()
 			done = True
-
-			return(done, info)
+			return(done)
+			# return(done, info)
 			### End of "If we're done" #########
 		    
 		    
 		### If we're NOT done . . . 
 		
 		# Write to file action and model stats from last 10 actions
-		if self.step_counter % 10 == 0:
+		if self.step_counter % 10 == 0: # and self.test_train == 'train':
 			# Get records of most recent action taken
 			action = self.current_action
 
@@ -498,14 +506,18 @@ class rl_env(gym.Env):
 				branch_record_dim = branch_action_records.shape[1]
 				file_name = \
 					f'branch_action_rec_dim{branch_record_dim}_{data_info}_{self.branch_model_name}_{self.record_batch_counter}'
-				np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
+				if not self.mp and self.test_train == 'train':
+					np.save(f'action_records/run_{self.run_n}/{file_name}', branch_action_records)
+				if self.mp and self.test_train == 'train':
+					np.save(f'/gpfs/home/tdekara/thesis/replay_buffer/{file_name}', branch_action_records)
 				del branch_action_records
 
 				branch_model_records = np.vstack(branch_model_records)
 				branch_record_dim = branch_model_records.shape[1]
 				model_data_info =  f'{data_info}_{self.branch_model_name}'
 				file_name = f'branch_model_rec_dim{branch_record_dim}_{model_data_info}_{self.record_batch_counter}'
-				np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
+				if not self.mp:
+					np.save(f'model_records/run_{self.run_n}/{file_name}', branch_model_records)
 				del branch_model_records
 
 			self.record_batch_counter += 1
@@ -548,5 +560,6 @@ class rl_env(gym.Env):
 
 		# Gather return values
 		done = False
-		info = self.get_info()
-		return(done, info)
+		return(done)
+		# info = self.get_info()
+		# return(done, info)

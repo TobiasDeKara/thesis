@@ -5,8 +5,8 @@ from tensorflow.keras import layers
 from keras.losses import mean_squared_error
 # from tensorflow.keras import activations
 action_type = 'branch' # for backward compatibility
-for model_type in ['range', 'specific']:
-	for reward_format in ['sig_num']: # , 'big_binary', 'numeric', 'binary']:
+for model_scope in ['range']: #, 'specific']:
+	for reward_format in ['binary']: # , 'big_binary', 'numeric', 'sig_num']:
 		for learning_rate in [0.00001]: #, 0.000001]:
 			optimizer = keras.optimizers.Adam(learning_rate=learning_rate) # default learning rate == 0.001 
 		
@@ -78,7 +78,7 @@ for model_type in ['range', 'specific']:
 		
 						print(model.summary())
 		
-						model_name = \
-						f'{action_type}_model_in{input_shape}_lay{n_layer}_drop_out_{drop_out}_rew_{reward_format}_reg_{regularization}_rate_{learning_rate}_{model_type}'
-		
+						# model_name = \
+						# f'{action_type}_model_in{input_shape}_lay{n_layer}_drop_out_{drop_out}_rew_{reward_format}_reg_{regularization}_rate_{learning_rate}_{model_scope}'
+						model_name = f'mp_{reward_format}_{model_scope}'
 						model.save(f'./models/{model_name}')

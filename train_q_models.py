@@ -80,7 +80,7 @@ def update_param(run_n, n_layer, drop_out, regularization, learning_rate, \
 		restore_best_weights=True)
 
 	# Train model
-	model.fit(x, y, epochs=10000, verbose=0, sample_weight=weights, \
+	model.fit(x, y, epochs=50, verbose=0, sample_weight=weights, \
 		callbacks=[tensorboard_callback, early_stopping_callback], \
 		validation_split=0.1, \
 		# validation_data = [validation_x, validation_y, validation_weights], \
