@@ -5,7 +5,7 @@
 # Up to 10k epochs, early stopping patience 100, 10 hours
 # 300 epochs, 1:10, max 1G 
 
-#SBATCH --time=25:00:00
+#SBATCH --time=5:00:00
 #SBATCH --mem=3G 
 
 # Specify a job name:
@@ -27,12 +27,17 @@
 module load python/3.9.0
 source ~/L0_env_p3.9.0/bin/activate
 
-python ~/thesis/train_q_models.py 4 6 yes True 1e-05 range binary 
-# python ~/thesis/train_q_models.py 4 6 yes True 1e-05 range big_binary 
-# python ~/thesis/train_q_models.py 4 6 yes True 1e-05 range sig_num
-# python ~/thesis/train_q_models.py 4 6 yes True 1e-05 specific binary
+# lean models, lay = 3,4,5,6
+# python ~/thesis/train_q_models.py 4 $1 yes True 1e-05 range binary True
+
+python ~/thesis/train_q_models.py 4 $1 no True 1e-05 range binary True
+
+# python ~/thesis/train_q_models.py 4 6 yes True 1e-05 range binary False
+# python ~/thesis/train_q_models.py 4 6 yes True 1e-05 range big_binary False
+# python ~/thesis/train_q_models.py 4 6 yes True 1e-05 range sig_num False
+# python ~/thesis/train_q_models.py 4 6 yes True 1e-05 specific binary False
 
 # <run_n> <n_layer> <drop_out> <regularization> <learning_rate> <model_scope>     reward_format
-# integer  integer   {yes, no} {True, False}     1e-05   {range, specific} {big_binary, binary, numeric, sig_num}
+# integer  integer   {yes, no} {True, False}     1e-05   {range, specific} {big_binary, binary, numeric, sig_num} {lean}
 # sbatch batch_train_q.sh 0 6 yes True 1e-05 True
 

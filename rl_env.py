@@ -468,7 +468,6 @@ class rl_env(gym.Env):
 		if self.step_counter % 10 == 0: # and self.test_train == 'train':
 			# Get records of most recent action taken
 			action = self.current_action
-
 			branch_action_records = []
 			branch_model_records = []
 

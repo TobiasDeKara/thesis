@@ -14,9 +14,12 @@ import shutil
 
 
 def update_param(run_n, n_layer, drop_out, regularization, learning_rate, \
-		model_scope, reward_format):
+		model_scope, reward_format, lean):
 	# Load x and y
-	record = np.load(f'./combined_action_records/run_{run_n}/branch_rec_comb.npy')
+	if lean:
+		record = np.load(f'./combined_action_records/run_{run_n}/branch_rec_comb_lean.npy')
+	else:
+		record = np.load(f'./combined_action_records/run_{run_n}/branch_rec_comb.npy')
 
 	if model_scope == 'specific':
 		# Filter for specific conditions: L0=1e-3, L2=1e-3, p=100
@@ -61,12 +64,18 @@ def update_param(run_n, n_layer, drop_out, regularization, learning_rate, \
 		y = y*100
 
 	# Load model
-	model_name = f'branch_model_in{x.shape[1]}_lay{n_layer}_drop_out_{drop_out}_rew_{reward_format}_reg_{regularization}_rate_{learning_rate}_{model_scope}'
+	if lean:
+		model_name = f'lean_in{x.shape[1]}_lay{n_layer}_drop_out_{drop_out}_rew_{reward_format}_reg_{regularization}_rate_{learning_rate}_{model_scope}'
+	else:
+		model_name = f'branch_model_in{x.shape[1]}_lay{n_layer}_drop_out_{drop_out}_rew_{reward_format}_reg_{regularization}_rate_{learning_rate}_{model_scope}'
 
 	model = tf.keras.models.load_model(f'./models/{model_name}')
 
 	# Make or clear log directory
-	log_dir = f"tb_logs/run_{run_n}/{model_name}"
+	if lean:
+		log_dir = f"tb_logs/lean/run_{run_n}/{model_name}"
+	else:
+		log_dir = f"tb_logs/run_{run_n}/{model_name}"
 	os.makedirs(log_dir, exist_ok=True)
 	for sub_dir in os.listdir(log_dir): 
 		# the automatically created sub_dirs are 'train' and 'validation'
@@ -74,13 +83,13 @@ def update_param(run_n, n_layer, drop_out, regularization, learning_rate, \
 	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir)
 	early_stopping_callback = tf.keras.callbacks.EarlyStopping(
 		monitor='val_loss',
-		min_delta=0,
-		patience=100,
+		min_delta=0.001,
+		patience=50,
 		mode='min',
 		restore_best_weights=True)
 
 	# Train model
-	model.fit(x, y, epochs=50, verbose=0, sample_weight=weights, \
+	model.fit(x, y, epochs=500, verbose=0, sample_weight=weights, \
 		callbacks=[tensorboard_callback, early_stopping_callback], \
 		validation_split=0.1, \
 		# validation_data = [validation_x, validation_y, validation_weights], \
@@ -96,4 +105,5 @@ if __name__ == '__main__':
 			regularization = sys.argv[4], \
 			learning_rate = sys.argv[5], \
 			model_scope = sys.argv[6], \
-			reward_format = sys.argv[7])
+			reward_format = sys.argv[7], \
+			lean = sys.argv[8])

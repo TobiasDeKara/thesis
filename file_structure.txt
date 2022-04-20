@@ -1,7 +1,3 @@
-# thesis
-Reinforcement Learning for Best Subset Variable Selection
-
-
 File structure
 ~/theis/
   |- action_records  # These records are independent of model.  They record the state, action taken, and observed reward.

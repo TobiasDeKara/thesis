@@ -1,8 +1,0 @@
-1 run consists of an array of 12 slurm jobs. 
-	Each job has . . .
-		8 batches of data. 
-			Each batch of data has 1000 input matrices.
-		The 8 batches of data are passed to 24 workers (8 batches x 3 L0 penalty values).
-		The 24 workers run until they have colletively run 50,000 timesteps.
-	The run has a total of 600,000 timesteps over 96,000 input matrices, over 3 L0 values.
-	
